@@ -1,6 +1,7 @@
 import OnboardingWizard from '@/components/onboarding/onboarding-wizard'
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
+import { Suspense } from 'react'
 
 export const metadata = {
   title: 'Onboarding | ForecourIQ DMS',
@@ -41,7 +42,9 @@ export default async function OnboardingPage() {
 
   return (
     <main className="min-h-screen bg-void">
-      <OnboardingWizard profile={profile} dealership={profile.dealership} />
+      <Suspense fallback={<div className="min-h-screen flex items-center justify-center text-silver font-mono text-xs uppercase tracking-widest">Initialising Wizard...</div>}>
+        <OnboardingWizard profile={profile} dealership={profile.dealership} />
+      </Suspense>
     </main>
   )
 }
