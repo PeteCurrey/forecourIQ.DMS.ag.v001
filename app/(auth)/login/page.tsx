@@ -29,10 +29,27 @@ function LoginForm() {
 
   async function onSubmit(data: any) {
     setIsLoading(true)
-    const { error } = await supabase.auth.signInWithPassword({
+    
+    let { error } = await supabase.auth.signInWithPassword({
       email: data.email,
       password: data.password,
     })
+
+    // If demo login fails, attempt to provision and try again
+    if (error && data.email === 'demo@forecouriq.co.uk') {
+      try {
+        const provRes = await fetch('/api/auth/demo-provision', { method: 'POST' })
+        if (provRes.ok) {
+          const secondAttempt = await supabase.auth.signInWithPassword({
+            email: data.email,
+            password: data.password,
+          })
+          error = secondAttempt.error
+        }
+      } catch (e) {
+        console.error('Provisioning failed', e)
+      }
+    }
 
     if (error) {
       toast.error(error.message)
