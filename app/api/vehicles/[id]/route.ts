@@ -26,7 +26,8 @@ async function authenticateApiKey(request: Request) {
   return { dealership }
 }
 
-export async function GET(request: Request, { params }: { params: { id: string } }) {
+export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params
   const auth = await authenticateApiKey(request)
   if (auth.error) {
     return NextResponse.json({ error: auth.error }, { status: auth.status })
@@ -35,7 +36,7 @@ export async function GET(request: Request, { params }: { params: { id: string }
   const { data, error } = await supabase
     .from('vehicles')
     .select('id, registration, make, model, variant, year, mileage, colour, fuel_type, transmission, body_type, doors, engine_size, mot_expiry, condition, asking_price, status, description, highlights, photos, primary_photo_index, created_at, updated_at')
-    .eq('id', params.id)
+    .eq('id', id)
     .eq('dealership_id', auth.dealership!.id)
     .single()
 

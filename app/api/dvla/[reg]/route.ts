@@ -1,8 +1,9 @@
 import { NextResponse } from 'next/server'
 
 // MOCK DVLA API for demo purposes
-export async function GET(request: Request, { params }: { params: { reg: string } }) {
-  const reg = params.reg.toUpperCase().replace(/\s+/g, '')
+export async function GET(request: Request, { params }: { params: Promise<{ reg: string }> }) {
+  const { reg: rawReg } = await params
+  const reg = rawReg.toUpperCase().replace(/\s+/g, '')
   
   // Simulate network delay
   await new Promise(resolve => setTimeout(resolve, 800))

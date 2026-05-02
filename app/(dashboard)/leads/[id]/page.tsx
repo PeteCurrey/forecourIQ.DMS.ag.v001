@@ -6,7 +6,8 @@ export const metadata = {
   title: 'Lead Details | ForecourIQ DMS',
 }
 
-export default async function LeadDetailPage({ params }: { params: { id: string } }) {
+export default async function LeadDetailPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params
   const supabase = await createClient()
   
   const { data: { user } } = await supabase.auth.getUser()
@@ -28,7 +29,7 @@ export default async function LeadDetailPage({ params }: { params: { id: string 
       vehicles (id, make, model, registration, asking_price, photos, primary_photo_index),
       assigned:profiles!leads_assigned_to_fkey (id, full_name, role)
     `)
-    .eq('id', params.id)
+    .eq('id', id)
     .eq('dealership_id', profile.dealership_id)
     .single()
 

@@ -6,7 +6,8 @@ export const metadata = {
   title: 'Vehicle Details | ForecourIQ DMS',
 }
 
-export default async function VehicleDetailPage({ params }: { params: { id: string } }) {
+export default async function VehicleDetailPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params
   const supabase = await createClient()
   
   const { data: { user } } = await supabase.auth.getUser()
@@ -24,7 +25,7 @@ export default async function VehicleDetailPage({ params }: { params: { id: stri
   const { data: vehicle, error } = await supabase
     .from('vehicles')
     .select('*')
-    .eq('id', params.id)
+    .eq('id', id)
     .eq('dealership_id', profile.dealership_id)
     .single()
 
