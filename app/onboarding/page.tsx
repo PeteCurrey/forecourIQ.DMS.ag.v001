@@ -16,23 +16,31 @@ export default async function OnboardingPage() {
   }
 
   // Check if profile exists
-  const { data: profile } = await supabase
+  let { data: profile } = await supabase
     .from('profiles')
     .select('*, dealership:dealerships(*)')
     .eq('id', user.id)
     .single()
 
-  // If no profile, they shouldn't be here (auth hook should have created it, but defensive)
+  // If no profile, create one immediately
   if (!profile) {
-    // Attempt to fix state or log out
-    return (
-      <div className="min-h-screen bg-void flex items-center justify-center p-12">
-        <div className="text-center">
-          <h1 className="font-syne font-bold text-2xl text-cream mb-4">Account sync in progress...</h1>
-          <p className="text-silver">Please refresh in a moment. If this persists, contact support.</p>
+    const { data: newProfile, error: createError } = await supabase
+      .from('profiles')
+      .insert({ id: user.id })
+      .select('*, dealership:dealerships(*)')
+      .single()
+    
+    if (createError) {
+      return (
+        <div className="min-h-screen bg-void flex items-center justify-center p-12">
+          <div className="text-center">
+            <h1 className="font-syne font-bold text-2xl text-cream mb-4">Account sync failed</h1>
+            <p className="text-silver">{createError.message}</p>
+          </div>
         </div>
-      </div>
-    )
+      )
+    }
+    profile = newProfile
   }
 
   // If onboarding is already complete, redirect to dashboard
