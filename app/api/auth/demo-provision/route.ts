@@ -11,7 +11,7 @@ export async function POST() {
     const { data: { users }, error: listError } = await supabaseAdmin.auth.admin.listUsers()
     if (listError) throw listError
 
-    let demoUser = users.find(u => u.email === demoEmail)
+    let demoUser: any = users.find(u => u.email === demoEmail)
 
     if (!demoUser) {
       // 2. Create demo user
