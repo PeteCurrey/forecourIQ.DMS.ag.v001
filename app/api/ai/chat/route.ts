@@ -46,7 +46,7 @@ export async function POST(req: Request) {
     }
 
     const anthropic = new Anthropic({
-      apiKey: process.env.ANTHROPIC_API_KEY,
+      apiKey: process.env.ANTHROPIC_API_KEY || 'sk-ant-sid01-dummy-key-for-build',
     })
 
     // Fetch context
