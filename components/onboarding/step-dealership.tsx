@@ -1,7 +1,6 @@
 'use client'
 
 import { useState } from 'react'
-import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { toast } from 'sonner'
@@ -15,7 +14,6 @@ export default function StepDealership({
   onComplete?: (updatedDealership?: any) => void
 }) {
   const [isLoading, setIsLoading] = useState(false)
-  const supabase = createClient()
 
   const { register, handleSubmit } = useForm({
     defaultValues: {
@@ -31,45 +29,27 @@ export default function StepDealership({
 
   async function onSubmit(data: any) {
     setIsLoading(true)
+    try {
+      const res = await fetch('/api/onboarding/dealership', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        // Pass the existing dealership id so the route knows whether to insert or update
+        body: JSON.stringify({ ...data, dealershipId: dealership?.id || null }),
+      })
 
-    // Auto-generate slug from name if not present
-    if (!data.slug) {
-      data.slug = data.name
-        .toLowerCase()
-        .replace(/\s+/g, '-')
-        .replace(/[^a-z0-9-]/g, '')
-    }
+      const json = await res.json()
 
-    let response: any
+      if (!res.ok) {
+        toast.error(json.error || 'Failed to save dealership')
+        return
+      }
 
-    if (dealership?.id) {
-      // Update existing dealership
-      response = await supabase
-        .from('dealerships')
-        .update(data)
-        .eq('id', dealership.id)
-        .select()
-        .single()
-    } else {
-      // Insert new dealership for the first time
-      response = await supabase
-        .from('dealerships')
-        .insert({ ...data })
-        .select()
-        .single()
-    }
-
-    const { data: saved, error } = response
-
-    if (error) {
-      toast.error(error.message)
+      if (onComplete) onComplete(json.dealership)
+    } catch (err: any) {
+      toast.error(err.message || 'Unexpected error')
+    } finally {
       setIsLoading(false)
-      return
     }
-
-    // Hand the saved record back to the wizard so subsequent steps have the ID
-    if (onComplete) onComplete(saved)
-    setIsLoading(false)
   }
 
   return (
