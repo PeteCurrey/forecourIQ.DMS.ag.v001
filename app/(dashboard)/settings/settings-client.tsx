@@ -7,13 +7,37 @@ import { Badge } from '@/components/ui/badge'
 import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
 import { createClient } from '@/lib/supabase/client'
-import { User, Building2, Link as LinkIcon, Users, CreditCard, Copy, RefreshCw } from 'lucide-react'
+import { User, Building2, Link as LinkIcon, Users, CreditCard, Copy, RefreshCw, Save } from 'lucide-react'
 import { format, differenceInDays } from 'date-fns'
+import { useSearchParams, useRouter } from 'next/navigation'
+import { useEffect } from 'react'
 
 export default function SettingsClient({ user, profile, dealership, team }: { user: any, profile: any, dealership: any, team: any[] }) {
-  const [activeTab, setActiveTab] = useState('profile')
+  const searchParams = useSearchParams()
+  const router = useRouter()
+  const [activeTab, setActiveTab] = useState(searchParams.get('tab') || 'profile')
   const [isSaving, setIsSaving] = useState(false)
   const supabase = createClient()
+
+  // Sync tab with URL
+  useEffect(() => {
+    const tab = searchParams.get('tab')
+    if (tab && TABS.some(t => t.id === tab)) {
+      setActiveTab(tab)
+    }
+  }, [searchParams])
+
+  const handleTabChange = (id: string) => {
+    setActiveTab(id)
+    const params = new URLSearchParams(searchParams.toString())
+    params.set('tab', id)
+    router.replace(`/settings?${params.toString()}`)
+  }
+
+  // Profile State
+  const [profileName, setProfileName] = useState(profile.full_name || '')
+
+  // Dealership State
 
   // Dealership State
   const [dealershipData, setDealershipData] = useState({
@@ -29,6 +53,24 @@ export default function SettingsClient({ user, profile, dealership, team }: { us
     fca_number: dealership.fca_number || '',
     primary_colour: dealership.primary_colour || '#0EA5E9'
   })
+
+  const handleSaveProfile = async () => {
+    setIsSaving(true)
+    try {
+      const { error } = await supabase
+        .from('profiles')
+        .update({ full_name: profileName })
+        .eq('id', user.id)
+
+      if (error) throw error
+      toast.success('Profile updated successfully')
+      router.refresh()
+    } catch (error) {
+      toast.error('Failed to update profile')
+    } finally {
+      setIsSaving(false)
+    }
+  }
 
   // Integrations State
   const [integrations, setIntegrations] = useState({
@@ -105,7 +147,7 @@ export default function SettingsClient({ user, profile, dealership, team }: { us
             return (
               <button
                 key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
+                onClick={() => handleTabChange(tab.id)}
                 className={cn(
                   "font-mono text-[12px] uppercase tracking-wider pb-3 flex items-center gap-2 border-b-2 transition-colors",
                   activeTab === tab.id 
@@ -127,11 +169,16 @@ export default function SettingsClient({ user, profile, dealership, team }: { us
         {activeTab === 'profile' && (
           <div className="space-y-8 animate-in fade-in duration-300">
             <div className="bg-carbon border border-steel p-6 rounded-[2px]">
-              <h2 className="font-syne font-bold text-lg text-cream mb-6">Personal Information</h2>
+              <div className="flex items-center justify-between mb-6">
+                <h2 className="font-syne font-bold text-lg text-cream">Personal Information</h2>
+                <Button onClick={handleSaveProfile} disabled={isSaving} className="gap-2">
+                  <Save size={14} /> {isSaving ? 'SAVING...' : 'SAVE PROFILE'}
+                </Button>
+              </div>
               
               <div className="flex items-center gap-6 mb-8 pb-6 border-b border-steel">
                 <div className="w-20 h-20 rounded-full bg-asphalt border border-steel flex items-center justify-center text-blue text-2xl font-mono">
-                  {profile.full_name?.charAt(0) || user.email?.charAt(0).toUpperCase()}
+                  {profileName?.charAt(0) || user.email?.charAt(0).toUpperCase()}
                 </div>
                 <div>
                   <Button variant="outline" size="sm">CHANGE AVATAR</Button>
@@ -141,11 +188,16 @@ export default function SettingsClient({ user, profile, dealership, team }: { us
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="space-y-2">
                   <label className="font-mono text-[11px] text-pewter uppercase tracking-wider">Full Name</label>
-                  <Input value={profile.full_name || ''} readOnly className="bg-asphalt/50" />
+                  <Input 
+                    value={profileName} 
+                    onChange={(e) => setProfileName(e.target.value)}
+                    className="bg-asphalt/50 focus:bg-carbon transition-colors" 
+                    placeholder="Enter your full name"
+                  />
                 </div>
                 <div className="space-y-2">
                   <label className="font-mono text-[11px] text-pewter uppercase tracking-wider">Email Address</label>
-                  <Input value={user.email || ''} readOnly className="bg-asphalt/50" />
+                  <Input value={user.email || ''} readOnly className="bg-asphalt/50 opacity-60 cursor-not-allowed" />
                 </div>
                 <div className="space-y-2">
                   <label className="font-mono text-[11px] text-pewter uppercase tracking-wider">Role</label>

@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 import { useDealership } from '@/hooks/use-dealership'
 import { getInitials } from '@/lib/utils'
+import ThemeToggle from './theme-toggle'
 
 export default function Topbar() {
   const router = useRouter()
@@ -39,6 +40,9 @@ export default function Topbar() {
           <span className="font-syne font-bold text-[13px] text-cream uppercase tracking-wider">{dealership?.name || 'HARTWELL MOTOR GROUP'}</span>
           <span className="font-mono text-[9px] text-blue uppercase tracking-widest">{dealership?.subscription_tier || 'ELITE'} PLAN · ACTIVE</span>
         </div>
+
+        {/* Theme Toggle */}
+        <ThemeToggle />
 
         {/* Notifications */}
         <button className="relative p-2 text-pewter hover:text-cream transition-colors group">

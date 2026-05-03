@@ -59,12 +59,12 @@ export default function Sidebar() {
         setUser(user);
         const { data: profile } = await supabase
           .from('profiles')
-          .select('full_name, role, dealerships(*)')
+          .select('full_name, role, dealership:dealerships(*)')
           .eq('id', user.id)
           .single();
         
         if (profile) {
-          setDealership(profile.dealerships);
+          setDealership(profile.dealership);
           setUser({ ...user, full_name: profile.full_name, role: profile.role });
         }
       }
@@ -158,7 +158,7 @@ export default function Sidebar() {
       )}
 
       {/* User Panel */}
-      <div className="p-4 border-top border-steel bg-carbon flex items-center justify-between">
+      <div className="p-4 border-t border-steel bg-carbon flex items-center justify-between">
         <div className="flex items-center gap-3 overflow-hidden">
           <div className="w-8 h-8 rounded-full bg-steel flex items-center justify-center text-blue font-mono text-[11px]">
             {user?.full_name ? getInitials(user.full_name) : <User size={14} />}
