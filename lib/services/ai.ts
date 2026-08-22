@@ -271,9 +271,27 @@ ${JSON.stringify(vehicleSpec, null, 2)}`
   return result.content
 }
 
+/**
+ * IQ CREATE — Draft factual customer response for lead enquiry.
+ */
+async function draftReply(
+  context: AIRunContext,
+  systemPrompt: string,
+  userMessage: string
+): Promise<string> {
+  const result = await executeRun(
+    context,
+    systemPrompt,
+    [{ role: 'user', content: userMessage }],
+    500
+  )
+  return result.content
+}
+
 export const AIService = {
   ask,
   generateBuyingSignals,
   generateVehicleDescription,
+  draftReply,
   isAvailable: () => anthropicConfig.status === 'available',
 }

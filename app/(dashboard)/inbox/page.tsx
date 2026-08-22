@@ -1,13 +1,13 @@
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
-import { LeadService } from '@/lib/services/lead'
-import LeadsClient from './leads-client'
+import { ConversationService } from '@/lib/services/conversation'
+import InboxClient from './inbox-client'
 
 export const metadata = {
-  title: 'Leads & CRM | ForecourIQ DMS',
+  title: 'Unified Customer Inbox | ForecourIQ DMS',
 }
 
-export default async function LeadsPage() {
+export default async function InboxPage() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
 
@@ -15,27 +15,24 @@ export default async function LeadsPage() {
 
   const { data: profile } = await supabase
     .from('profiles')
-    .select('id, full_name, role, dealership_id')
+    .select('id, full_name, role, dealership_id, dealerships(name, city, phone)')
     .eq('id', user.id)
     .single()
 
   if (!profile?.dealership_id) redirect('/onboarding')
 
-  const [leads, kpis, teamRes, vehiclesRes] = await Promise.all([
-    LeadService.list(profile.dealership_id),
-    LeadService.getCRM_KPIs(profile.dealership_id),
+  const [conversations, teamRes] = await Promise.all([
+    ConversationService.list(profile.dealership_id),
     supabase.from('profiles').select('id, full_name, email, role').eq('dealership_id', profile.dealership_id),
-    supabase.from('vehicles').select('id, make, model, registration, asking_price').eq('dealership_id', profile.dealership_id).not('status', 'in', '("sold","completed","archived")'),
   ])
 
   return (
     <div className="flex flex-col h-[calc(100vh-56px)] overflow-hidden bg-void">
-      <LeadsClient 
-        initialLeads={leads} 
-        kpis={kpis}
+      <InboxClient 
+        initialConversations={conversations}
         teamMembers={teamRes.data || []}
-        vehicles={vehiclesRes.data || []}
         currentUser={{ id: user.id, full_name: profile.full_name, role: profile.role }}
+        dealership={profile.dealerships as any}
       />
     </div>
   )

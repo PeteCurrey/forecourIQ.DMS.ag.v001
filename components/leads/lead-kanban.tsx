@@ -1,150 +1,172 @@
 'use client'
 
 import { DragDropContext, Droppable, Draggable, DropResult } from '@hello-pangea/dnd'
-import { LEAD_STATUSES } from '@/lib/constants'
 import { formatDistanceToNow } from 'date-fns'
 import { cn } from '@/lib/utils'
 import { createClient } from '@/lib/supabase/client'
 import { toast } from 'sonner'
 import Link from 'next/link'
+import { Flame, Clock, Calendar, User, CheckCircle2 } from 'lucide-react'
+import { LeadRecord, calculateSLA } from '@/lib/services/lead-calc'
 
 interface LeadKanbanProps {
-  leads: any[]
-  setLeads: React.Dispatch<React.SetStateAction<any[]>>
+  leads: LeadRecord[]
+  setLeads: React.Dispatch<React.SetStateAction<LeadRecord[]>>
 }
+
+const PIPELINE_COLUMNS = [
+  { id: 'new', label: 'New Enquiries', color: 'border-blue/40' },
+  { id: 'contacted', label: 'Contacted', color: 'border-steel' },
+  { id: 'qualified', label: 'Qualified', color: 'border-blue' },
+  { id: 'appointment_booked', label: 'Appointment', color: 'border-warning/50' },
+  { id: 'deal_ready', label: 'Deal Ready', color: 'border-positive/50' },
+  { id: 'won', label: 'Won', color: 'border-positive' },
+]
 
 export default function LeadKanban({ leads, setLeads }: LeadKanbanProps) {
   const supabase = createClient()
 
   const onDragEnd = async (result: DropResult) => {
     const { destination, source, draggableId } = result
-
-    // Dropped outside a list
     if (!destination) return
-
-    // Dropped in same position
-    if (
-      destination.droppableId === source.droppableId &&
-      destination.index === source.index
-    ) {
-      return
-    }
+    if (destination.droppableId === source.droppableId && destination.index === source.index) return
 
     const leadId = draggableId
     const newStatus = destination.droppableId
 
-    // Optimistic UI update
     const previousLeads = [...leads]
     const updatedLeads = leads.map(lead => 
-      lead.id === leadId ? { ...lead, status: newStatus } : lead
+      lead.id === leadId ? { ...lead, status: newStatus as any } : lead
     )
     setLeads(updatedLeads)
 
-    // Persist to database
     try {
-      const { error } = await supabase
-        .from('leads')
-        .update({ status: newStatus })
-        .eq('id', leadId)
+      const res = await fetch(`/api/leads/${leadId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: newStatus })
+      })
 
-      if (error) throw error
-    } catch (error) {
+      if (!res.ok) throw new Error('Failed to update status')
+      toast.success(`Lead moved to ${newStatus.replace('_', ' ')}`)
+    } catch {
       toast.error('Failed to update lead status')
-      setLeads(previousLeads) // Revert on failure
+      setLeads(previousLeads)
     }
   }
 
-  // Get source badge styling
   const getSourceStyle = (source: string) => {
-    switch(source.toLowerCase()) {
-      case 'website': return "bg-[rgba(14,165,233,0.1)] text-[#0EA5E9] border-[#0EA5E9]/20"
-      case 'autotrader': return "bg-[rgba(255,107,53,0.1)] text-[#FF6B35] border-[#FF6B35]/20"
-      case 'ebay': return "bg-[rgba(26,115,232,0.1)] text-[#1A73E8] border-[#1A73E8]/20"
-      default: return "bg-[rgba(92,100,120,0.1)] text-[#9DA8B7] border-[#5C6478]/20"
+    switch((source || '').toLowerCase()) {
+      case 'website': return 'bg-blue/10 text-blue border-blue/20'
+      case 'autotrader': return 'bg-orange-500/10 text-orange-400 border-orange-500/20'
+      case 'motors': return 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
+      case 'cargurus': return 'bg-purple-500/10 text-purple-400 border-purple-500/20'
+      default: return 'bg-slate text-silver border-steel'
     }
   }
 
   return (
     <DragDropContext onDragEnd={onDragEnd}>
-      <div className="flex h-full p-6 gap-4 items-start w-max min-w-full">
-        {LEAD_STATUSES.map(status => {
-          const columnLeads = leads.filter(l => l.status === status.value)
-          
+      <div className="flex h-full gap-4 p-6 overflow-x-auto min-w-max pb-12">
+        {PIPELINE_COLUMNS.map((column) => {
+          const columnLeads = leads.filter(l => {
+            if (column.id === 'new') return l.status === 'new' || l.status === 'unassigned'
+            if (column.id === 'contacted') return l.status === 'contacted' || l.status === 'contact_attempted' || l.status === 'nurture'
+            if (column.id === 'deal_ready') return l.status === 'deal_ready' || l.status === 'proposal_required'
+            return l.status === column.id
+          })
+
           return (
-            <div key={status.value} className="w-[300px] flex-shrink-0 flex flex-col h-full max-h-full">
-              {/* Column Header */}
-              <div className="flex items-center justify-between mb-3 px-1">
-                <h3 className="font-syne font-bold text-[13px] text-cream uppercase tracking-wider">{status.label}</h3>
-                <span className="font-mono text-[11px] text-pewter bg-asphalt px-2 py-0.5 rounded-[2px]">{columnLeads.length}</span>
-              </div>
+            <div key={column.id} className="w-[300px] flex flex-col bg-carbon/60 border border-steel rounded-[2px] h-full shrink-0">
               
-              {/* Column Body */}
-              <Droppable droppableId={status.value}>
+              {/* Column Header */}
+              <div className={cn("p-3 border-b bg-carbon flex items-center justify-between", column.color)}>
+                <div className="flex items-center gap-2">
+                  <span className="font-syne font-bold text-xs text-cream uppercase tracking-wider">{column.label}</span>
+                  <span className="font-mono text-[10px] bg-asphalt text-silver border border-steel px-1.5 py-0.2 rounded-full">
+                    {columnLeads.length}
+                  </span>
+                </div>
+              </div>
+
+              {/* Droppable Card List */}
+              <Droppable droppableId={column.id}>
                 {(provided, snapshot) => (
                   <div
                     ref={provided.innerRef}
                     {...provided.droppableProps}
                     className={cn(
-                      "bg-carbon rounded-[2px] p-2 flex-1 overflow-y-auto min-h-[150px] border",
-                      snapshot.isDraggingOver ? "border-blue/50 bg-blue/5" : "border-transparent"
+                      "flex-1 p-3 overflow-y-auto space-y-3 transition-colors",
+                      snapshot.isDraggingOver ? "bg-asphalt/60" : "bg-transparent"
                     )}
                   >
-                    {columnLeads.map((lead, index) => (
-                      <Draggable key={lead.id} draggableId={lead.id} index={index}>
-                        {(provided, snapshot) => (
-                          <div
-                            ref={provided.innerRef}
-                            {...provided.draggableProps}
-                            {...provided.dragHandleProps}
-                            style={provided.draggableProps.style}
-                          >
-                            <Link 
-                              href={`/leads/${lead.id}`}
+                    {columnLeads.map((lead, index) => {
+                      const sla = calculateSLA(lead)
+                      const salesperson = lead.profiles?.full_name || 'Unassigned'
+
+                      return (
+                        <Draggable key={lead.id} draggableId={lead.id} index={index}>
+                          {(provided, snapshot) => (
+                            <div
+                              ref={provided.innerRef}
+                              {...provided.draggableProps}
+                              {...provided.dragHandleProps}
                               className={cn(
-                                "block bg-asphalt border border-steel rounded-[2px] p-4 mb-2 hover:border-slate transition-colors cursor-grab active:cursor-grabbing",
-                                snapshot.isDragging ? "shadow-xl border-blue z-50 rotate-2" : "",
-                                status.value === 'won' ? "border-l-4 border-l-positive" : "",
-                                status.value === 'lost' ? "opacity-60" : ""
+                                "bg-carbon border border-steel p-3.5 rounded-[2px] transition-all hover:border-slate cursor-grab active:cursor-grabbing shadow-sm",
+                                snapshot.isDragging && "border-blue shadow-lg bg-carbon/95 rotate-1",
+                                lead.temperature === 'hot' && "border-l-2 border-l-positive"
                               )}
                             >
-                              <div className="flex justify-between items-start mb-2">
-                                <span className={cn(
-                                  "font-mono text-[9px] px-2 py-1 border rounded-[2px] uppercase",
-                                  getSourceStyle(lead.source)
-                                )}>
-                                  {lead.source}
-                                </span>
-                                {lead.finance_interest && (
-                                  <span className="font-mono text-[9px] bg-warning/10 text-warning border border-warning/20 px-2 py-1 rounded-[2px]">FIN</span>
+                              <div className="flex items-start justify-between gap-2 mb-2">
+                                <Link 
+                                  href={`/leads/${lead.id}`}
+                                  className="font-syne font-bold text-[13px] text-cream hover:text-blue transition-colors line-clamp-1"
+                                >
+                                  {lead.first_name} {lead.last_name}
+                                </Link>
+                                
+                                {lead.temperature === 'hot' && (
+                                  <span className="font-mono text-[9px] text-positive font-bold flex items-center gap-0.5">
+                                    🔥 HOT
+                                  </span>
                                 )}
                               </div>
-                              
-                              <p className="font-syne font-bold text-[14px] text-cream mb-1 truncate">
-                                {lead.first_name} {lead.last_name}
-                              </p>
-                              
-                              <p className="font-inter text-[12px] text-silver truncate mb-3">
-                                {lead.vehicles ? `${(lead.vehicles as any).make} ${(lead.vehicles as any).model}` : 'No vehicle selected'}
-                              </p>
-                              
-                              <div className="flex justify-between items-center mt-auto border-t border-steel pt-3">
-                                <div className="flex -space-x-1">
-                                  {/* Just a placeholder avatar since we don't have real ones */}
-                                  <div className="w-5 h-5 rounded-full bg-steel border border-asphalt flex items-center justify-center">
-                                    <span className="font-mono text-[8px] text-blue">
-                                      {lead.assigned?.full_name ? lead.assigned.full_name.charAt(0) : '?'}
-                                    </span>
+
+                              {lead.vehicles && (
+                                <div className="p-2 bg-asphalt rounded-[2px] border border-steel/60 mb-2">
+                                  <p className="font-inter text-xs text-cream truncate">
+                                    {lead.vehicles.make} {lead.vehicles.model}
+                                  </p>
+                                  <div className="flex justify-between items-center mt-1">
+                                    <span className="font-mono text-[10px] text-silver">{lead.vehicles.registration}</span>
+                                    <span className="font-mono text-[10px] text-pewter">£{lead.vehicles.asking_price?.toLocaleString()}</span>
                                   </div>
                                 </div>
-                                <span className="font-mono text-[10px] text-pewter">
-                                  {formatDistanceToNow(new Date(lead.created_at), { addSuffix: true })}
+                              )}
+
+                              <div className="flex items-center justify-between text-[10px] pt-1">
+                                <span className={cn("font-mono px-1.5 py-0.5 border rounded-[2px] uppercase", getSourceStyle(lead.source))}>
+                                  {lead.source}
+                                </span>
+
+                                <span className={cn(
+                                  "font-mono flex items-center gap-0.5",
+                                  sla.status === 'responded' ? "text-positive" :
+                                  sla.status === 'overdue' ? "text-negative font-bold" : "text-pewter"
+                                )}>
+                                  <Clock size={10} /> {sla.label}
                                 </span>
                               </div>
-                            </Link>
-                          </div>
-                        )}
-                      </Draggable>
-                    ))}
+
+                              <div className="flex items-center justify-between text-[10px] text-pewter mt-2 pt-2 border-t border-steel/40">
+                                <span className="font-inter truncate max-w-[120px]">{salesperson}</span>
+                                <span className="font-mono">{formatDistanceToNow(new Date(lead.created_at), { addSuffix: true })}</span>
+                              </div>
+                            </div>
+                          )}
+                        </Draggable>
+                      )
+                    })}
                     {provided.placeholder}
                   </div>
                 )}

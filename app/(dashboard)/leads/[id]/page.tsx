@@ -1,9 +1,11 @@
 import { createClient } from '@/lib/supabase/server'
 import { notFound, redirect } from 'next/navigation'
+import { LeadService } from '@/lib/services/lead'
+import { ConversationService } from '@/lib/services/conversation'
 import LeadDetailClient from './lead-detail-client'
 
 export const metadata = {
-  title: 'Lead Details | ForecourIQ DMS',
+  title: 'Lead Opportunity Workspace | ForecourIQ DMS',
 }
 
 export default async function LeadDetailPage({ params }: { params: Promise<{ id: string }> }) {
@@ -15,42 +17,51 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
 
   const { data: profile } = await supabase
     .from('profiles')
-    .select('dealership_id')
+    .select('id, full_name, role, dealership_id, dealerships(name, city, phone)')
     .eq('id', user.id)
     .single()
 
   if (!profile?.dealership_id) redirect('/onboarding')
 
-  // Fetch the lead
-  const { data: lead, error } = await supabase
-    .from('leads')
-    .select(`
-      *,
-      vehicles (id, make, model, registration, asking_price, photos, primary_photo_index),
-      assigned:profiles!leads_assigned_to_fkey (id, full_name, role)
-    `)
-    .eq('id', id)
-    .eq('dealership_id', profile.dealership_id)
-    .single()
+  let lead: any
+  let conversation: any
+  let teamMembers: any[] = []
+  let tasks: any[] = []
+  let appointments: any[] = []
 
-  if (error || !lead) {
+  try {
+    lead = await LeadService.getById(profile.dealership_id, id)
+    
+    // Get or initialize conversation
+    conversation = await ConversationService.getOrCreateForLead(
+      profile.dealership_id,
+      lead.id,
+      lead.customer_id,
+      lead.channel || 'web'
+    )
+
+    const [teamRes, tasksRes, apptsRes] = await Promise.all([
+      supabase.from('profiles').select('id, full_name, email, role').eq('dealership_id', profile.dealership_id),
+      supabase.from('tasks').select('*').eq('dealership_id', profile.dealership_id).eq('lead_id', lead.id).order('created_at', { ascending: false }),
+      supabase.from('appointments').select('*').eq('dealership_id', profile.dealership_id).eq('lead_id', lead.id).order('start_time', { ascending: true }),
+    ])
+
+    teamMembers = teamRes.data || []
+    tasks = tasksRes.data || []
+    appointments = apptsRes.data || []
+  } catch (err) {
     notFound()
   }
-
-  // Fetch activities for this lead
-  const { data: activities } = await supabase
-    .from('activities')
-    .select(`
-      *,
-      creator:profiles!activities_created_by_fkey (id, full_name)
-    `)
-    .eq('lead_id', lead.id)
-    .order('created_at', { ascending: false })
 
   return (
     <LeadDetailClient 
       lead={lead} 
-      initialActivities={activities || []} 
+      initialConversation={conversation}
+      teamMembers={teamMembers}
+      initialTasks={tasks}
+      initialAppointments={appointments}
+      currentUser={{ id: user.id, full_name: profile.full_name, role: profile.role }}
+      dealership={profile.dealerships as any}
     />
   )
 }

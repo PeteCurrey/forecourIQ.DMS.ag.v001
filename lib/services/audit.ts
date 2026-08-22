@@ -18,12 +18,15 @@ export type AuditAction =
   | 'customer.created'
   | 'customer.updated'
   | 'customer.deleted'
-  // Leads
+  // Leads & CRM
   | 'lead.created'
   | 'lead.assigned'
   | 'lead.status_changed'
   | 'lead.won'
   | 'lead.lost'
+  | 'call.logged'
+  | 'message.sent'
+  | 'message.failed'
   // Deals
   | 'deal.created'
   | 'deal.updated'

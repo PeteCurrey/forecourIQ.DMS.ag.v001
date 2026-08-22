@@ -43,8 +43,9 @@ const navSections = [
       { label: 'Dashboard', icon: LayoutDashboard, href: '/dashboard' },
       { label: 'Stockbook', icon: Car, href: '/stock', badgeKey: 'stock' },
       { label: 'Preparation', icon: Wrench, href: '/stock/preparation', badgeKey: 'prep' },
-      { label: 'Customers', icon: Users, href: '/customers' },
-      { label: 'Leads', icon: Inbox, href: '/leads', badgeKey: 'leads' },
+      { label: 'Inbox', icon: Inbox, href: '/inbox', badgeKey: 'inbox' },
+      { label: 'Leads', icon: Users, href: '/leads', badgeKey: 'leads' },
+      { label: 'Customers', icon: User, href: '/customers' },
       { label: 'Tasks', icon: CheckSquare, href: '/tasks', badgeKey: 'tasks' },
       { label: 'Appointments', icon: Calendar, href: '/appointments' },
     ]
@@ -71,7 +72,7 @@ export default function Sidebar() {
   const supabase = createClient();
   const [user, setUser] = useState<UserInfo | null>(null);
   const [dealership, setDealership] = useState<DealershipProfile | null>(null);
-  const [counts, setCounts] = useState<{ stock?: number; prep?: number; leads?: number; tasks?: number; signals?: number }>({});
+  const [counts, setCounts] = useState<{ stock?: number; prep?: number; leads?: number; tasks?: number; signals?: number; inbox?: number }>({});
 
   useEffect(() => {
     async function loadData() {
@@ -96,12 +97,13 @@ export default function Sidebar() {
 
         if (profile.dealership_id) {
           // Fetch real counts across domain tables
-          const [stockRes, prepRes, leadsRes, tasksRes, signalsRes] = await Promise.all([
+          const [stockRes, prepRes, leadsRes, tasksRes, signalsRes, inboxRes] = await Promise.all([
             supabase.from('vehicles').select('id', { count: 'exact', head: true }).eq('dealership_id', profile.dealership_id).in('status', ['available', 'advertised', 'ready_for_sale']),
             supabase.from('vehicles').select('id', { count: 'exact', head: true }).eq('dealership_id', profile.dealership_id).in('status', ['inspection', 'preparation', 'photography']),
-            supabase.from('leads').select('id', { count: 'exact', head: true }).eq('dealership_id', profile.dealership_id).eq('status', 'new'),
+            supabase.from('leads').select('id', { count: 'exact', head: true }).eq('dealership_id', profile.dealership_id).in('status', ['new', 'unassigned']),
             supabase.from('tasks').select('id', { count: 'exact', head: true }).eq('dealership_id', profile.dealership_id).in('status', ['open', 'in_progress']),
             supabase.from('buying_signals').select('id', { count: 'exact', head: true }).eq('dealership_id', profile.dealership_id).eq('status', 'active'),
+            supabase.from('conversations').select('id', { count: 'exact', head: true }).eq('dealership_id', profile.dealership_id).eq('status', 'open'),
           ]);
 
           setCounts({
@@ -110,6 +112,7 @@ export default function Sidebar() {
             leads: leadsRes.count ?? 0,
             tasks: tasksRes.count ?? 0,
             signals: signalsRes.count ?? 0,
+            inbox: inboxRes.count ?? 0,
           });
         }
       }
