@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
-import CommandCentreClient from './command-centre-client'
+import CommandCentreClient, { DealershipInfo, BuyingSignalItem, VehicleStockRecord } from './command-centre-client'
+import { MarketObservation } from '@/components/command-centre/market-intel-panel'
 
 export const metadata = {
   title: 'Command Centre | ForecourIQ DMS',
@@ -20,12 +21,10 @@ export default async function CommandCentrePage() {
 
   if (!profile?.dealership_id) redirect('/onboarding')
 
-  // Fetch initial data needed for command centre
-  
   // 1. Dealership details for context
   const { data: dealership } = await supabase
     .from('dealerships')
-    .select('name, city, county')
+    .select('id, name, city, county')
     .eq('id', profile.dealership_id)
     .single()
 
@@ -47,16 +46,23 @@ export default async function CommandCentrePage() {
   // 4. Basic Stock Stats for Portfolio Health
   const { data: stock } = await supabase
     .from('vehicles')
-    .select('id, make, asking_price, purchase_price, prep_cost, transport_cost, created_at, status')
+    .select('id, make, model, asking_price, purchase_price, prep_cost, transport_cost, created_at, status')
     .eq('dealership_id', profile.dealership_id)
     .eq('status', 'available')
 
+  const safeDealership: DealershipInfo = dealership || {
+    id: profile.dealership_id,
+    name: 'Your Dealership',
+    city: 'UK',
+    county: 'UK',
+  }
+
   return (
     <CommandCentreClient 
-      dealership={dealership || {}}
-      initialSignals={signals || []}
-      marketData={marketData || []}
-      stock={stock || []}
+      dealership={safeDealership}
+      initialSignals={(signals || []) as BuyingSignalItem[]}
+      marketData={(marketData || []) as MarketObservation[]}
+      stock={(stock || []) as VehicleStockRecord[]}
     />
   )
 }

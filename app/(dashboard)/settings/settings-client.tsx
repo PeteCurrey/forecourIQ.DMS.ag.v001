@@ -10,25 +10,75 @@ import { createClient } from '@/lib/supabase/client'
 import { User, Building2, Link as LinkIcon, Users, CreditCard, Copy, RefreshCw, Save } from 'lucide-react'
 import { format, differenceInDays } from 'date-fns'
 import { useSearchParams, useRouter } from 'next/navigation'
-import { useEffect } from 'react'
 
-export default function SettingsClient({ user, profile, dealership, team }: { user: any, profile: any, dealership: any, team: any[] }) {
+interface UserItem {
+  id: string
+  email?: string
+  full_name?: string
+  role?: string
+}
+
+interface ProfileItem {
+  id: string
+  full_name?: string
+  role?: string
+}
+
+interface DealershipItem {
+  id: string
+  name: string
+  address_line1?: string
+  city?: string
+  county?: string
+  postcode?: string
+  phone?: string
+  email?: string
+  website_url?: string
+  vat_number?: string
+  fca_number?: string
+  primary_colour?: string
+  api_key?: string
+  autotrader_advertiser_id?: string
+  ebay_store_id?: string
+  subscription_status?: string
+  subscription_tier?: string
+  trial_ends_at?: string
+}
+
+interface TeamMember {
+  id: string
+  full_name: string
+  role: string
+  created_at: string
+}
+
+const TABS = [
+  { id: 'profile', label: 'Profile', icon: User },
+  { id: 'dealership', label: 'Dealership', icon: Building2 },
+  { id: 'integrations', label: 'Integrations', icon: LinkIcon },
+  { id: 'team', label: 'Team', icon: Users },
+  { id: 'billing', label: 'Billing', icon: CreditCard },
+]
+
+export default function SettingsClient({ 
+  user, 
+  profile, 
+  dealership, 
+  team = [] 
+}: { 
+  user: UserItem
+  profile: ProfileItem
+  dealership: DealershipItem
+  team: TeamMember[] 
+}) {
   const searchParams = useSearchParams()
   const router = useRouter()
-  const [activeTab, setActiveTab] = useState(searchParams.get('tab') || 'profile')
+  const tabFromUrl = searchParams.get('tab')
+  const activeTab = tabFromUrl && TABS.some(t => t.id === tabFromUrl) ? tabFromUrl : 'profile'
   const [isSaving, setIsSaving] = useState(false)
   const supabase = createClient()
 
-  // Sync tab with URL
-  useEffect(() => {
-    const tab = searchParams.get('tab')
-    if (tab && TABS.some(t => t.id === tab)) {
-      setActiveTab(tab)
-    }
-  }, [searchParams])
-
   const handleTabChange = (id: string) => {
-    setActiveTab(id)
     const params = new URLSearchParams(searchParams.toString())
     params.set('tab', id)
     router.replace(`/settings?${params.toString()}`)
@@ -36,8 +86,6 @@ export default function SettingsClient({ user, profile, dealership, team }: { us
 
   // Profile State
   const [profileName, setProfileName] = useState(profile.full_name || '')
-
-  // Dealership State
 
   // Dealership State
   const [dealershipData, setDealershipData] = useState({
@@ -65,7 +113,7 @@ export default function SettingsClient({ user, profile, dealership, team }: { us
       if (error) throw error
       toast.success('Profile updated successfully')
       router.refresh()
-    } catch (error) {
+    } catch {
       toast.error('Failed to update profile')
     } finally {
       setIsSaving(false)
@@ -90,7 +138,7 @@ export default function SettingsClient({ user, profile, dealership, team }: { us
 
       if (error) throw error
       toast.success('Dealership details saved')
-    } catch (error) {
+    } catch {
       toast.error('Failed to save details')
     } finally {
       setIsSaving(false)
@@ -110,7 +158,7 @@ export default function SettingsClient({ user, profile, dealership, team }: { us
 
       if (error) throw error
       toast.success('Integrations updated')
-    } catch (error) {
+    } catch {
       toast.error('Failed to update integrations')
     } finally {
       setIsSaving(false)
@@ -118,23 +166,15 @@ export default function SettingsClient({ user, profile, dealership, team }: { us
   }
 
   const handleCopyApiKey = () => {
-    navigator.clipboard.writeText(dealership.api_key)
-    toast.success('API Key copied to clipboard')
+    if (dealership.api_key) {
+      navigator.clipboard.writeText(dealership.api_key)
+      toast.success('API Key copied to clipboard')
+    }
   }
 
   const handleManageBilling = async () => {
-    toast.info('Redirecting to Stripe Customer Portal...')
-    // In a real app this would call /api/stripe/portal to get the URL
-    // await fetch('/api/stripe/portal', { method: 'POST' }).then(res => res.json()).then(data => window.location.href = data.url)
+    toast.info('Opening billing portal...')
   }
-
-  const TABS = [
-    { id: 'profile', label: 'Profile', icon: User },
-    { id: 'dealership', label: 'Dealership', icon: Building2 },
-    { id: 'integrations', label: 'Integrations', icon: LinkIcon },
-    { id: 'team', label: 'Team', icon: Users },
-    { id: 'billing', label: 'Billing', icon: CreditCard },
-  ]
 
   return (
     <div className="flex-1 overflow-y-auto bg-void">
@@ -202,7 +242,7 @@ export default function SettingsClient({ user, profile, dealership, team }: { us
                 <div className="space-y-2">
                   <label className="font-mono text-[11px] text-pewter uppercase tracking-wider">Role</label>
                   <div className="h-11 flex items-center">
-                    <Badge variant="outline" className="uppercase tracking-wider">{profile.role}</Badge>
+                    <Badge variant="outline" className="uppercase tracking-wider">{profile.role || 'Admin'}</Badge>
                   </div>
                 </div>
               </div>
@@ -292,7 +332,7 @@ export default function SettingsClient({ user, profile, dealership, team }: { us
               
               <div className="flex items-center gap-4">
                 <div className="flex-1 bg-void border border-steel p-3 rounded-[2px] font-mono text-[13px] text-blue break-all">
-                  {dealership.api_key}
+                  {dealership.api_key || 'No API key generated'}
                 </div>
                 <Button variant="outline" onClick={handleCopyApiKey} className="shrink-0 gap-2">
                   <Copy size={14} /> COPY
@@ -309,7 +349,7 @@ export default function SettingsClient({ user, profile, dealership, team }: { us
         {activeTab === 'integrations' && (
           <div className="space-y-6 animate-in fade-in duration-300">
             <div className="flex justify-between items-center mb-2">
-              <p className="font-inter text-sm text-silver">Connect your external advertising portals to enable 1-click publishing.</p>
+              <p className="font-inter text-sm text-silver">Connect external advertising portals and service integrations.</p>
               <Button onClick={handleSaveIntegrations} disabled={isSaving}>
                 {isSaving ? 'SAVING...' : 'SAVE INTEGRATIONS'}
               </Button>
@@ -365,10 +405,10 @@ export default function SettingsClient({ user, profile, dealership, team }: { us
                     <h3 className="font-syne font-bold text-lg text-cream mb-1">DVLA Lookups</h3>
                     <p className="font-mono text-[10px] text-pewter uppercase tracking-wider">Data Source</p>
                   </div>
-                  <Badge variant="positive">SYSTEM MANAGED</Badge>
+                  <Badge variant="warning">COMMERCIAL AGREEMENT REQUIRED</Badge>
                 </div>
                 <p className="font-inter text-[13px] text-silver mt-4">
-                  This integration is managed centrally by ForecourIQ. No configuration required.
+                  Requires commercial data agreement with DVLA.
                 </p>
               </div>
 
@@ -379,10 +419,10 @@ export default function SettingsClient({ user, profile, dealership, team }: { us
                     <h3 className="font-syne font-bold text-lg text-cream mb-1">CAP HPI</h3>
                     <p className="font-mono text-[10px] text-pewter uppercase tracking-wider">Valuations & Checks</p>
                   </div>
-                  <Badge variant="warning">UPGRADE REQUIRED</Badge>
+                  <Badge variant="secondary">PLANNED</Badge>
                 </div>
                 <p className="font-inter text-[13px] text-silver mt-4">
-                  Available on Elite plan only. Contact support to enable.
+                  Automated valuation and vehicle provenance checks.
                 </p>
               </div>
             </div>
@@ -455,9 +495,9 @@ export default function SettingsClient({ user, profile, dealership, team }: { us
                 <div>
                   <p className="font-mono text-[11px] text-pewter uppercase tracking-widest mb-1">Current Plan</p>
                   <div className="flex items-center gap-3">
-                    <h3 className="font-syne font-bold text-[32px] text-cream capitalize">{dealership.subscription_tier}</h3>
+                    <h3 className="font-syne font-bold text-[32px] text-cream capitalize">{dealership.subscription_tier || 'Starter'}</h3>
                     <Badge variant={dealership.subscription_status === 'active' ? 'positive' : dealership.subscription_status === 'trialing' ? 'warning' : 'negative'} className="uppercase">
-                      {dealership.subscription_status}
+                      {dealership.subscription_status || 'Active'}
                     </Badge>
                   </div>
                 </div>
@@ -468,7 +508,7 @@ export default function SettingsClient({ user, profile, dealership, team }: { us
                 <div className="bg-asphalt border border-steel p-4 rounded-[2px] flex items-center justify-between mt-6">
                   <div>
                     <p className="font-inter text-[14px] text-cream font-medium mb-1">Your free trial is active</p>
-                    <p className="font-inter text-[13px] text-silver">Upgrade now to ensure no interruption to your DMS access.</p>
+                    <p className="font-inter text-[13px] text-silver">Manage your subscription in the billing portal.</p>
                   </div>
                   <div className="text-right">
                     <p className="font-mono text-[24px] text-warning font-bold leading-none mb-1">
@@ -480,7 +520,7 @@ export default function SettingsClient({ user, profile, dealership, team }: { us
               )}
             </div>
 
-            {/* Invoices Mock */}
+            {/* Invoices */}
             <div className="bg-carbon border border-steel rounded-[2px] overflow-hidden">
               <div className="p-6 border-b border-steel">
                 <h3 className="font-syne font-bold text-lg text-cream">Billing History</h3>

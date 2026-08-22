@@ -1,0 +1,76 @@
+import { createClient } from '@/lib/supabase/server'
+import { ForbiddenError } from '@/lib/errors'
+
+export type PermissionKey =
+  | 'stock.read'
+  | 'stock.create'
+  | 'stock.update'
+  | 'stock.delete'
+  | 'stock.costs'
+  | 'stock.publish'
+  | 'customers.read'
+  | 'customers.create'
+  | 'customers.update'
+  | 'customers.delete'
+  | 'leads.read'
+  | 'leads.create'
+  | 'leads.update'
+  | 'leads.assign'
+  | 'leads.respond'
+  | 'deals.read'
+  | 'deals.create'
+  | 'deals.update'
+  | 'deals.approve_discount'
+  | 'deals.complete'
+  | 'finance.read'
+  | 'finance.manage'
+  | 'compliance.read'
+  | 'compliance.manage'
+  | 'intelligence.read'
+  | 'intelligence.act'
+  | 'users.manage'
+  | 'integrations.manage'
+  | 'billing.manage'
+  | 'settings.manage'
+
+/**
+ * Check if the current authenticated user has a specific permission in their dealership.
+ */
+export async function hasPermission(dealershipId: string, userId: string, permission: PermissionKey): Promise<boolean> {
+  const supabase = await createClient()
+
+  // 1. Get user profile role
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('role')
+    .eq('id', userId)
+    .eq('dealership_id', dealershipId)
+    .single()
+
+  if (!profile?.role) return false
+
+  // Dealer principal / admin have full operational rights
+  if (profile.role === 'admin' || profile.role === 'dealer_principal') {
+    return true
+  }
+
+  // 2. Query role_permissions
+  const { data: rolePerm } = await supabase
+    .from('role_permissions')
+    .select('permission_id')
+    .eq('role_id', profile.role)
+    .eq('permission_id', permission)
+    .maybeSingle()
+
+  return !!rolePerm
+}
+
+/**
+ * Enforce permission check or throw ForbiddenError.
+ */
+export async function requirePermission(dealershipId: string, userId: string, permission: PermissionKey): Promise<void> {
+  const allowed = await hasPermission(dealershipId, userId, permission)
+  if (!allowed) {
+    throw new ForbiddenError(`Missing required permission: ${permission}`)
+  }
+}

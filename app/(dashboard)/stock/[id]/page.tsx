@@ -1,9 +1,10 @@
 import { createClient } from '@/lib/supabase/server'
 import { notFound, redirect } from 'next/navigation'
-import VehicleDetailClient from './vehicle-detail-client'
+import { VehicleService, VehicleRecord } from '@/lib/services/vehicle'
+import VehicleHub from './vehicle-hub'
 
 export const metadata = {
-  title: 'Vehicle Details | ForecourIQ DMS',
+  title: 'Vehicle Hub | ForecourIQ DMS',
 }
 
 export default async function VehicleDetailPage({ params }: { params: Promise<{ id: string }> }) {
@@ -21,37 +22,46 @@ export default async function VehicleDetailPage({ params }: { params: Promise<{ 
 
   if (!profile?.dealership_id) redirect('/onboarding')
 
-  // Fetch the vehicle
-  const { data: vehicle, error } = await supabase
-    .from('vehicles')
-    .select('*')
-    .eq('id', id)
-    .eq('dealership_id', profile.dealership_id)
-    .single()
+  let vehicle: (VehicleRecord & { [key: string]: any }) | null = null
+  let leads: any[] = []
+  let deals: any[] = []
+  let locations: any[] = []
+  let teamMembers: any[] = []
 
-  if (error || !vehicle) {
+  try {
+    vehicle = await VehicleService.getById(profile.dealership_id, id)
+
+    const [leadsRes, dealsRes, locationsRes, teamRes] = await Promise.all([
+      supabase.from('leads').select('*').eq('dealership_id', profile.dealership_id).eq('vehicle_id', id),
+      supabase.from('deals').select('*').eq('dealership_id', profile.dealership_id).eq('vehicle_id', id),
+      supabase.from('dealership_locations').select('id, name').eq('dealership_id', profile.dealership_id),
+      supabase.from('profiles').select('id, full_name').eq('dealership_id', profile.dealership_id)
+    ])
+
+    leads = leadsRes.data || []
+    deals = dealsRes.data || []
+    locations = locationsRes.data || []
+    teamMembers = teamRes.data || []
+  } catch {
+    vehicle = null
+  }
+
+  if (!vehicle) {
     notFound()
   }
 
-  // Fetch expenses for this vehicle
-  const { data: expenses } = await supabase
-    .from('expenses')
-    .select('*')
-    .eq('vehicle_id', vehicle.id)
-    .order('created_at', { ascending: false })
-
-  // Fetch leads for this vehicle
-  const { data: leads } = await supabase
-    .from('leads')
-    .select('id, first_name, last_name, status, created_at')
-    .eq('vehicle_id', vehicle.id)
-    .order('created_at', { ascending: false })
-
   return (
-    <VehicleDetailClient 
-      vehicle={vehicle} 
-      expenses={expenses || []} 
-      leads={leads || []} 
+    <VehicleHub 
+      vehicle={vehicle}
+      costs={vehicle.vehicle_costs || []}
+      prepJobs={vehicle.preparation_jobs || []}
+      documents={vehicle.vehicle_documents || []}
+      statusHistory={vehicle.vehicle_status_history || []}
+      priceHistory={vehicle.vehicle_price_history || []}
+      leads={leads}
+      deals={deals}
+      locations={locations}
+      teamMembers={teamMembers}
     />
   )
 }

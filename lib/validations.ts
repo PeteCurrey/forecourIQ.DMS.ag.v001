@@ -1,4 +1,4 @@
-import * as z from 'zod'
+import { z } from 'zod'
 
 export const loginSchema = z.object({
   email: z.string().email('Invalid email address'),
@@ -48,7 +48,38 @@ export const leadSchema = z.object({
   vehicle_id: z.string().uuid().optional().nullable(),
   finance_interest: z.boolean().default(false),
   part_ex_reg: z.string().optional().nullable(),
+  part_ex_mileage: z.number().int().nonnegative().optional().nullable(),
+  part_ex_value: z.number().nonnegative().optional().nullable(),
 }).refine(data => data.email || data.phone, {
   message: "Either email or phone is required",
   path: ["email"]
+})
+
+export const customerSchema = z.object({
+  first_name: z.string().min(1, 'First name is required'),
+  last_name: z.string().min(1, 'Last name is required'),
+  email: z.string().email().optional().or(z.literal('')),
+  phone: z.string().optional().or(z.literal('')),
+  address_line1: z.string().optional(),
+  address_line2: z.string().optional(),
+  city: z.string().optional(),
+  county: z.string().optional(),
+  postcode: z.string().optional(),
+  marketing_consent: z.boolean().default(false),
+  notes: z.string().optional(),
+})
+
+export const dealSchema = z.object({
+  customer_id: z.string().uuid().optional().nullable(),
+  vehicle_id: z.string().uuid().optional().nullable(),
+  lead_id: z.string().uuid().optional().nullable(),
+  sale_price: z.number().positive('Sale price must be positive'),
+  discount_amount: z.number().min(0).default(0),
+  part_ex_allowance: z.number().min(0).default(0),
+  deposit_amount: z.number().min(0).default(0),
+  payment_method: z.string().optional(),
+  finance_type: z.enum(['hp', 'pcp', 'bch', 'cash', 'other']).default('cash'),
+  finance_amount: z.number().min(0).default(0),
+  handover_date: z.string().optional().nullable(),
+  notes: z.string().optional(),
 })

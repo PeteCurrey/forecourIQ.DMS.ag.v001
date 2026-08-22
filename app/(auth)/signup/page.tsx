@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useForm } from 'react-hook-form'
+import { z } from 'zod'
 import { signupSchema } from '@/lib/validations'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -13,26 +14,30 @@ import Link from 'next/link'
 import { SUBSCRIPTION_PLANS } from '@/lib/constants'
 import { cn } from '@/lib/utils'
 
+type SignupFormData = z.infer<typeof signupSchema>
+
 function SignupForm() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const [isLoading, setIsLoading] = useState(false)
   const supabase = createClient()
 
-  const { register, handleSubmit, watch, setValue, formState: { errors } } = useForm({
+  const defaultPlan = (searchParams.get('plan') as 'starter' | 'professional' | 'elite') || 'professional'
+
+  const { register, handleSubmit, watch, setValue, formState: { errors } } = useForm<SignupFormData>({
     resolver: zodResolver(signupSchema),
     defaultValues: {
       fullName: '',
       dealershipName: searchParams.get('name') || '',
       email: searchParams.get('email') || '',
       password: '',
-      plan: (searchParams.get('plan') as any) || 'professional',
+      plan: defaultPlan,
     }
   })
 
   const selectedPlan = watch('plan')
 
-  async function onSubmit(data: any) {
+  async function onSubmit(data: SignupFormData) {
     setIsLoading(true)
     
     const { error } = await supabase.auth.signUp({
@@ -70,25 +75,25 @@ function SignupForm() {
           <div className="space-y-2">
             <label className="font-inter text-[13px] text-silver">Full Name</label>
             <Input {...register('fullName')} className="bg-carbon border-steel" placeholder="John Smith" />
-            {errors.fullName && <p className="text-negative text-xs">{errors.fullName.message as string}</p>}
+            {errors.fullName && <p className="text-negative text-xs">{errors.fullName.message}</p>}
           </div>
           <div className="space-y-2">
             <label className="font-inter text-[13px] text-silver">Dealership Name</label>
             <Input {...register('dealershipName')} className="bg-carbon border-steel" placeholder="Prestige Motors" />
-            {errors.dealershipName && <p className="text-negative text-xs">{errors.dealershipName.message as string}</p>}
+            {errors.dealershipName && <p className="text-negative text-xs">{errors.dealershipName.message}</p>}
           </div>
         </div>
 
         <div className="space-y-2">
           <label className="font-inter text-[13px] text-silver">Email Address</label>
           <Input {...register('email')} type="email" className="bg-carbon border-steel" placeholder="name@dealership.co.uk" />
-          {errors.email && <p className="text-negative text-xs">{errors.email.message as string}</p>}
+          {errors.email && <p className="text-negative text-xs">{errors.email.message}</p>}
         </div>
 
         <div className="space-y-2">
           <label className="font-inter text-[13px] text-silver">Password</label>
           <Input {...register('password')} type="password" className="bg-carbon border-steel" />
-          {errors.password && <p className="text-negative text-xs">{errors.password.message as string}</p>}
+          {errors.password && <p className="text-negative text-xs">{errors.password.message}</p>}
         </div>
 
         <div className="space-y-4">
@@ -98,7 +103,7 @@ function SignupForm() {
               <button
                 key={plan.id}
                 type="button"
-                onClick={() => setValue('plan', plan.id as any)}
+                onClick={() => setValue('plan', plan.id as 'starter' | 'professional' | 'elite')}
                 className={cn(
                   "flex items-center justify-between p-4 border transition-all rounded-[2px] bg-carbon",
                   selectedPlan === plan.id ? "border-blue ring-1 ring-blue" : "border-steel hover:border-pewter"
@@ -159,7 +164,7 @@ export default function SignupPage() {
 
         <div className="space-y-3">
           <div className="inline-flex items-center px-4 py-2 bg-void border border-steel rounded-[2px]">
-            <span className="font-mono text-[11px] text-pewter uppercase tracking-widest">JOIN 200+ INDEPENDENT DEALERS</span>
+            <span className="font-mono text-[11px] text-pewter uppercase tracking-widest">DEALER MANAGEMENT SYSTEM</span>
           </div>
         </div>
       </div>

@@ -1,7 +1,6 @@
 'use client'
 
 import { useState, useRef, useEffect } from 'react'
-import { Button } from '@/components/ui/button'
 import { Send, Bot, User, ChevronDown, ChevronUp, Sparkles } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -10,7 +9,7 @@ interface Message {
   content: string
 }
 
-export default function AiChat({ dealershipName, location }: { dealershipName: string, location: string }) {
+export default function AiChat({ dealershipName, location = 'your region' }: { dealershipName: string, location?: string }) {
   const [isOpen, setIsOpen] = useState(true)
   const [input, setInput] = useState('')
   const [messages, setMessages] = useState<Message[]>([])
@@ -49,7 +48,6 @@ export default function AiChat({ dealershipName, location }: { dealershipName: s
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
           messages: newMessages,
-          dealershipId: 'current-dealer-id' // Handled securely by session in the route
         })
       })
 
@@ -119,7 +117,7 @@ export default function AiChat({ dealershipName, location }: { dealershipName: s
                 </div>
                 <h3 className="font-syne font-bold text-xl text-cream mb-2">How can I help you today?</h3>
                 <p className="font-inter text-sm text-silver text-center max-w-md mb-8">
-                  I have full access to your stock list, recent sales data, and the latest {location} market intelligence.
+                  I have full access to your stock list, recent sales data, and regional market intelligence for {location}.
                 </p>
                 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3 w-full max-w-2xl">
@@ -129,7 +127,7 @@ export default function AiChat({ dealershipName, location }: { dealershipName: s
                       onClick={() => handleSubmit(undefined, prompt)}
                       className="bg-asphalt hover:bg-steel border border-steel hover:border-blue p-3 rounded-[2px] text-left transition-colors group"
                     >
-                      <p className="font-inter text-[13px] text-silver group-hover:text-cream transition-colors">"{prompt}"</p>
+                      <p className="font-inter text-[13px] text-silver group-hover:text-cream transition-colors">&ldquo;{prompt}&rdquo;</p>
                     </button>
                   ))}
                 </div>

@@ -1,71 +1,26 @@
 import { createClient } from '@/lib/supabase/server'
-import { formatCurrency } from '@/lib/format'
-import { formatDistanceToNow, format, subDays } from 'date-fns'
+import { formatCurrency, formatRegistration } from '@/lib/format'
+import { formatDistanceToNow, format, subDays, isToday } from 'date-fns'
 import { cn } from '@/lib/utils'
 import Link from 'next/link'
-import { ArrowRight, AlertTriangle, Info, TrendingDown } from 'lucide-react'
+import { 
+  ArrowRight, 
+  AlertTriangle, 
+  Info, 
+  TrendingDown, 
+  Calendar, 
+  CheckSquare, 
+  Wrench, 
+  Clock, 
+  Car, 
+  PoundSterling,
+  Plus
+} from 'lucide-react'
 import DashboardCharts from '@/components/dashboard/dashboard-charts'
 import BuyingSignalsPreview from '@/components/dashboard/buying-signals-preview'
-
-async function getDashboardData(dealershipId: string) {
-  const supabase = await createClient()
-
-  const now = new Date()
-  const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1)
-  const lastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1)
-  const endLastMonth = new Date(now.getFullYear(), now.getMonth(), 0)
-
-  const [
-    { data: vehicles },
-    { data: leads48h },
-    { data: leadsMonth },
-    { data: soldThisMonth },
-    { data: soldLastMonth },
-    { data: recentLeads },
-    { data: buyingSignals },
-  ] = await Promise.all([
-    supabase.from('vehicles').select('*').eq('dealership_id', dealershipId).eq('status', 'available'),
-    supabase.from('leads').select('id').eq('dealership_id', dealershipId).gte('created_at', subDays(now, 2).toISOString()),
-    supabase.from('leads').select('id').eq('dealership_id', dealershipId).gte('created_at', startOfMonth.toISOString()),
-    supabase.from('vehicles').select('sold_price, purchase_price, prep_cost, transport_cost').eq('dealership_id', dealershipId).eq('status', 'sold').gte('sold_at', startOfMonth.toISOString()),
-    supabase.from('vehicles').select('sold_price, purchase_price, prep_cost, transport_cost').eq('dealership_id', dealershipId).eq('status', 'sold').gte('sold_at', lastMonth.toISOString()).lte('sold_at', endLastMonth.toISOString()),
-    supabase.from('leads').select('*, vehicles(make, model, registration)').eq('dealership_id', dealershipId).order('created_at', { ascending: false }).limit(8),
-    supabase.from('buying_signals').select('*').eq('dealership_id', dealershipId).eq('status', 'active').order('demand_score', { ascending: false }).limit(3),
-  ])
-
-  // Compute avg days on plot
-  const avgDays = vehicles?.length
-    ? Math.round(
-        vehicles.reduce((acc, v) => {
-          const days = Math.floor((now.getTime() - new Date(v.created_at).getTime()) / (1000 * 60 * 60 * 24))
-          return acc + days
-        }, 0) / vehicles.length
-      )
-    : 0
-
-  // Compute margin MTD
-  const marginMTD = (soldThisMonth || []).reduce((acc, v) => {
-    const margin = (v.sold_price || 0) - (v.purchase_price || 0) - (v.prep_cost || 0) - (v.transport_cost || 0)
-    return acc + margin
-  }, 0)
-
-  const marginLastMonth = (soldLastMonth || []).reduce((acc, v) => {
-    const margin = (v.sold_price || 0) - (v.purchase_price || 0) - (v.prep_cost || 0) - (v.transport_cost || 0)
-    return acc + margin
-  }, 0)
-
-  return {
-    stockCount: vehicles?.length || 0,
-    vehicles: vehicles || [],
-    leads48h: leads48h?.length || 0,
-    leadsMonth: leadsMonth?.length || 0,
-    avgDays,
-    marginMTD,
-    marginLastMonth,
-    recentLeads: recentLeads || [],
-    buyingSignals: buyingSignals || [],
-  }
-}
+import { VehicleService } from '@/lib/services/vehicle'
+import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
 
 export default async function DashboardPage() {
   const supabase = await createClient()
@@ -80,211 +35,325 @@ export default async function DashboardPage() {
     .single()
 
   const dealershipId = profile?.dealership_id
-  const dealershipName = (profile?.dealerships as any)?.name || 'Your Dealership'
+  const dealershipInfo = profile?.dealerships as { name?: string; city?: string } | null
+  const dealershipName = dealershipInfo?.name || 'Your Dealership'
 
-  const data = dealershipId ? await getDashboardData(dealershipId) : {
-    stockCount: 35, vehicles: [], leads48h: 4, leadsMonth: 24,
-    avgDays: 22, marginMTD: 48500, marginLastMonth: 41200,
-    recentLeads: [], buyingSignals: [],
-  }
+  if (!dealershipId) return null
 
   const now = new Date()
+  const twoDaysAgo = subDays(now, 2)
+  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString()
+  const todayEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59).toISOString()
+
+  // Real Database Queries
+  const [
+    kpis,
+    { data: activeVehicles },
+    { data: todayAppointments },
+    { data: todayTasks },
+    { data: prepDueJobs },
+    { data: overdueLeads },
+    { data: recentLeads },
+    { data: buyingSignals },
+  ] = await Promise.all([
+    VehicleService.getStockKPIs(dealershipId),
+    supabase.from('vehicles').select('*').eq('dealership_id', dealershipId).not('status', 'in', '("sold","completed","archived")'),
+    supabase.from('appointments').select('*, vehicles(registration, make, model), customers(first_name, last_name)').eq('dealership_id', dealershipId).gte('start_at', todayStart).lte('start_at', todayEnd).order('start_at', { ascending: true }),
+    supabase.from('tasks').select('*').eq('dealership_id', dealershipId).eq('status', 'open').lte('due_at', todayEnd).order('due_at', { ascending: true }),
+    supabase.from('preparation_jobs').select('*, vehicles(registration, make, model)').eq('dealership_id', dealershipId).neq('status', 'completed').neq('status', 'cancelled').lte('due_date', now.toISOString().split('T')[0]),
+    supabase.from('leads').select('id, first_name, last_name, status, created_at, vehicles(make, model, registration)').eq('dealership_id', dealershipId).in('status', ['new', 'contacted']).lt('created_at', twoDaysAgo.toISOString()),
+    supabase.from('leads').select('*, vehicles(make, model, registration)').eq('dealership_id', dealershipId).order('created_at', { ascending: false }).limit(6),
+    supabase.from('buying_signals').select('*').eq('dealership_id', dealershipId).eq('status', 'active').order('demand_score', { ascending: false }).limit(3),
+  ])
+
   const hour = now.getHours()
   const firstName = profile?.full_name?.split(' ')[0] || 'there'
   const greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening'
 
-  const daysColor = data.avgDays < 25 ? 'text-positive' : data.avgDays < 40 ? 'text-warning' : 'text-negative'
-  const marginChange = data.marginLastMonth > 0
-    ? ((data.marginMTD - data.marginLastMonth) / data.marginLastMonth) * 100
-    : 0
-
-  // Alerts
-  const overage45 = (data.vehicles || []).filter(v => {
-    const days = Math.floor((now.getTime() - new Date(v.created_at).getTime()) / (1000 * 60 * 60 * 24))
-    return days > 45
-  })
-
   return (
-    <div className="space-y-8">
-      {/* Greeting */}
-      <div>
-        <h1 className="font-syne font-bold text-3xl text-cream">
-          {greeting}, {firstName}.
-        </h1>
-        <p className="font-inter text-sm text-silver mt-1">
-          {dealershipName} · {format(now, 'EEEE d MMMM yyyy')}
-        </p>
-      </div>
-
-      {/* KPI Cards */}
-      <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
-        {/* Stock on Plot */}
-        <div className="bg-carbon border border-steel rounded-[2px] p-6">
-          <p className="font-mono text-[10px] text-pewter uppercase tracking-[0.12em] mb-4">Stock on Plot</p>
-          <p className="font-syne font-bold text-5xl text-cream mb-2">
-            <span className="font-mono">{data.stockCount}</span>
+    <div className="space-y-8 pb-16">
+      
+      {/* Top Banner */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div>
+          <h1 className="font-syne font-bold text-[32px] text-cream tracking-tight">
+            {greeting}, {firstName}.
+          </h1>
+          <p className="font-inter text-sm text-silver mt-1">
+            {dealershipName} · {format(now, 'EEEE d MMMM yyyy')}
           </p>
-          <p className="font-inter text-[13px] text-silver mb-2">vehicles available</p>
-          <p className="font-mono text-[11px] text-positive">+3 added this month</p>
         </div>
 
-        {/* New Leads 48h */}
-        <div className="bg-carbon border border-steel rounded-[2px] p-6">
-          <p className="font-mono text-[10px] text-pewter uppercase tracking-[0.12em] mb-4">New Leads (48H)</p>
-          <p className="font-syne font-bold text-5xl text-cream mb-2">
-            <span className="font-mono">{data.leads48h}</span>
-          </p>
-          <p className="font-inter text-[13px] text-silver mb-2">in last 48 hours</p>
+        <div className="flex items-center gap-3">
+          <Button asChild variant="outline" size="sm" className="gap-2">
+            <Link href="/stock/preparation">
+              <Wrench size={14} /> PREP BOARD
+            </Link>
+          </Button>
+          <Button asChild size="sm" className="gap-2">
+            <Link href="/stock/add">
+              <Plus size={15} /> ADD VEHICLE
+            </Link>
+          </Button>
+        </div>
+      </div>
+
+      {/* Primary KPI Grid (All Real Data) */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        
+        {/* Retail Units */}
+        <div className="bg-carbon border border-steel rounded-[2px] p-5">
+          <p className="font-mono text-[10px] text-pewter uppercase tracking-widest mb-3">Retail Stock on Plot</p>
+          <p className="font-mono font-bold text-4xl text-cream mb-1">{kpis.totalRetailUnits}</p>
           <p className="font-mono text-[11px] text-silver">
-            <span className="font-mono">{data.leadsMonth}</span> total this month
+            {kpis.vehiclesInPreparation} in prep · {kpis.vehiclesReserved} reserved
           </p>
         </div>
 
-        {/* Avg Days on Plot */}
-        <div className="bg-carbon border border-steel rounded-[2px] p-6">
-          <p className="font-mono text-[10px] text-pewter uppercase tracking-[0.12em] mb-4">Avg Days on Plot</p>
-          <p className={cn("font-syne font-bold text-5xl mb-2", daysColor)}>
-            <span className="font-mono">{data.avgDays}</span>
-          </p>
-          <p className="font-inter text-[13px] text-silver mb-2">days average</p>
-          <p className="font-mono text-[11px] text-pewter">Market avg: <span className="font-mono">31</span> days</p>
+        {/* Invested Capital */}
+        <div className="bg-carbon border border-steel rounded-[2px] p-5">
+          <p className="font-mono text-[10px] text-pewter uppercase tracking-widest mb-3">Total Invested Cost</p>
+          <p className="font-mono font-bold text-4xl text-cream mb-1">{formatCurrency(kpis.totalStockValue)}</p>
+          <p className="font-mono text-[11px] text-silver">Acquisition + Prep Ledger</p>
         </div>
 
-        {/* Margin MTD */}
-        <div className="bg-carbon border border-steel rounded-[2px] p-6">
-          <p className="font-mono text-[10px] text-pewter uppercase tracking-[0.12em] mb-4">Margin MTD</p>
-          <p className="font-syne font-bold text-5xl text-cream mb-2">
-            <span className="font-mono">{formatCurrency(data.marginMTD)}</span>
+        {/* Potential Gross Margin */}
+        <div className="bg-carbon border border-steel rounded-[2px] p-5">
+          <p className="font-mono text-[10px] text-pewter uppercase tracking-widest mb-3">Potential Gross Margin</p>
+          <p className="font-mono font-bold text-4xl text-positive mb-1">{formatCurrency(kpis.potentialGrossMargin)}</p>
+          <p className="font-mono text-[11px] text-silver">
+            Avg {formatCurrency(kpis.averageGrossMargin)} / unit
           </p>
-          <p className="font-inter text-[13px] text-silver mb-2">gross margin this month</p>
+        </div>
+
+        {/* Velocity & Aging */}
+        <div className="bg-carbon border border-steel rounded-[2px] p-5">
+          <p className="font-mono text-[10px] text-pewter uppercase tracking-widest mb-3">Forecourt Velocity</p>
           <p className={cn(
-            "font-mono text-[11px]",
-            marginChange >= 0 ? "text-positive" : "text-negative"
+            "font-mono font-bold text-4xl mb-1",
+            kpis.averageDaysInStock < 30 ? "text-positive" : kpis.averageDaysInStock < 45 ? "text-cream" : "text-warning"
           )}>
-            {marginChange >= 0 ? '+' : ''}<span className="font-mono">{marginChange.toFixed(1)}</span>% vs last month
+            {kpis.averageDaysInStock} <span className="text-base font-normal text-silver">days avg</span>
           </p>
+          <p className="font-mono text-[11px] text-silver">
+            {kpis.vehiclesOver45Days} units &gt;45 days
+          </p>
+        </div>
+
+      </div>
+
+      {/* TODAY OPERATIONAL AGENDA & WORKFLOW */}
+      <div className="bg-carbon border border-steel rounded-[2px] p-6">
+        <div className="flex items-center justify-between mb-4 pb-3 border-b border-steel">
+          <div className="flex items-center gap-3">
+            <h2 className="font-syne font-bold text-lg text-cream flex items-center gap-2">
+              <Calendar size={18} className="text-blue" /> TODAY'S OPERATIONAL AGENDA
+            </h2>
+            <Badge variant="outline" className="font-mono text-[10px]">
+              {(todayAppointments?.length || 0) + (todayTasks?.length || 0) + (prepDueJobs?.length || 0)} ACTIONS
+            </Badge>
+          </div>
+          <span className="font-mono text-xs text-silver">{format(now, 'dd MMM yyyy')}</span>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          
+          {/* Appointments Column */}
+          <div className="space-y-3">
+            <p className="font-mono text-[11px] text-pewter uppercase tracking-wider flex items-center justify-between">
+              <span>Viewings & Handovers</span>
+              <span className="text-cream">{todayAppointments?.length || 0}</span>
+            </p>
+            <div className="space-y-2">
+              {todayAppointments && todayAppointments.length > 0 ? (
+                todayAppointments.map(appt => (
+                  <div key={appt.id} className="p-3 bg-asphalt border border-steel rounded-[2px]">
+                    <p className="font-inter font-medium text-xs text-cream">{appt.title}</p>
+                    <p className="font-mono text-[10px] text-silver mt-1 flex items-center gap-1">
+                      <Clock size={11} /> {format(new Date(appt.start_at), 'HH:mm')} · {appt.location || 'Forecourt'}
+                    </p>
+                  </div>
+                ))
+              ) : (
+                <p className="font-inter text-xs text-pewter py-3">No appointments scheduled for today.</p>
+              )}
+            </div>
+          </div>
+
+          {/* Prep Due Column */}
+          <div className="space-y-3">
+            <p className="font-mono text-[11px] text-pewter uppercase tracking-wider flex items-center justify-between">
+              <span>Preparation Jobs Due</span>
+              <span className="text-cream">{prepDueJobs?.length || 0}</span>
+            </p>
+            <div className="space-y-2">
+              {prepDueJobs && prepDueJobs.length > 0 ? (
+                prepDueJobs.map(job => (
+                  <div key={job.id} className="p-3 bg-asphalt border border-steel rounded-[2px]">
+                    <p className="font-inter font-medium text-xs text-cream">{job.title}</p>
+                    <div className="flex items-center justify-between mt-1 font-mono text-[10px]">
+                      <span className="text-silver">{job.vehicles?.registration || 'Vehicle'}</span>
+                      <span className="text-warning font-bold uppercase">{job.category}</span>
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <p className="font-inter text-xs text-pewter py-3">No prep deadlines due today.</p>
+              )}
+            </div>
+          </div>
+
+          {/* Overdue Leads & Follow-ups Column */}
+          <div className="space-y-3">
+            <p className="font-mono text-[11px] text-pewter uppercase tracking-wider flex items-center justify-between">
+              <span>Overdue Follow-ups</span>
+              <span className={cn(overdueLeads && overdueLeads.length > 0 ? "text-negative font-bold" : "text-cream")}>
+                {overdueLeads?.length || 0}
+              </span>
+            </p>
+            <div className="space-y-2">
+              {overdueLeads && overdueLeads.length > 0 ? (
+                overdueLeads.slice(0, 3).map(lead => (
+                  <Link key={lead.id} href={`/leads/${lead.id}`} className="p-3 bg-asphalt border border-negative/30 rounded-[2px] block hover:border-negative transition-colors">
+                    <p className="font-inter font-medium text-xs text-cream">{lead.first_name} {lead.last_name}</p>
+                    <p className="font-mono text-[10px] text-negative mt-0.5">
+                      No contact in &gt;48h · {Array.isArray(lead.vehicles) ? lead.vehicles[0]?.make : (lead.vehicles as any)?.make || 'Enquiry'}
+                    </p>
+                  </Link>
+                ))
+              ) : (
+                <p className="font-inter text-xs text-pewter py-3">All leads contacted within 48h SLA.</p>
+              )}
+            </div>
+          </div>
+
         </div>
       </div>
 
-      {/* Charts Row */}
-      <DashboardCharts vehicles={data.vehicles} />
+      {/* Stock Ageing Breakdown & Visual Charts */}
+      <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
+        
+        {/* Stock Ageing Bands */}
+        <div className="lg:col-span-2 bg-carbon border border-steel rounded-[2px] p-6 space-y-4">
+          <div className="flex justify-between items-center">
+            <h2 className="font-syne font-bold text-base text-cream">Stock Ageing Distribution</h2>
+            <span className="font-mono text-xs text-silver">{kpis.totalRetailUnits} units</span>
+          </div>
 
-      {/* Leads & Alerts Row */}
+          <div className="space-y-3 font-mono text-xs">
+            <div>
+              <div className="flex justify-between text-silver mb-1">
+                <span>0 – 30 Days (Fresh Stock):</span>
+                <span className="text-positive font-bold">{kpis.ageingBreakdown.under30} units</span>
+              </div>
+              <div className="h-1.5 w-full bg-asphalt rounded-full overflow-hidden">
+                <div className="h-full bg-positive" style={{ width: `${kpis.totalRetailUnits > 0 ? (kpis.ageingBreakdown.under30 / kpis.totalRetailUnits) * 100 : 0}%` }} />
+              </div>
+            </div>
+
+            <div>
+              <div className="flex justify-between text-silver mb-1">
+                <span>31 – 45 Days (Optimal Velocity):</span>
+                <span className="text-cream">{kpis.ageingBreakdown.days31to45} units</span>
+              </div>
+              <div className="h-1.5 w-full bg-asphalt rounded-full overflow-hidden">
+                <div className="h-full bg-blue" style={{ width: `${kpis.totalRetailUnits > 0 ? (kpis.ageingBreakdown.days31to45 / kpis.totalRetailUnits) * 100 : 0}%` }} />
+              </div>
+            </div>
+
+            <div>
+              <div className="flex justify-between text-silver mb-1">
+                <span>46 – 60 Days (Review Required):</span>
+                <span className="text-warning font-bold">{kpis.ageingBreakdown.days46to60} units</span>
+              </div>
+              <div className="h-1.5 w-full bg-asphalt rounded-full overflow-hidden">
+                <div className="h-full bg-warning" style={{ width: `${kpis.totalRetailUnits > 0 ? (kpis.ageingBreakdown.days46to60 / kpis.totalRetailUnits) * 100 : 0}%` }} />
+              </div>
+            </div>
+
+            <div>
+              <div className="flex justify-between text-silver mb-1">
+                <span>61 – 90 Days (Ageing Stock):</span>
+                <span className="text-negative font-bold">{kpis.ageingBreakdown.days61to90} units</span>
+              </div>
+              <div className="h-1.5 w-full bg-asphalt rounded-full overflow-hidden">
+                <div className="h-full bg-negative/80" style={{ width: `${kpis.totalRetailUnits > 0 ? (kpis.ageingBreakdown.days61to90 / kpis.totalRetailUnits) * 100 : 0}%` }} />
+              </div>
+            </div>
+
+            <div>
+              <div className="flex justify-between text-silver mb-1">
+                <span>90+ Days (Critical Ageing):</span>
+                <span className="text-negative font-bold">{kpis.ageingBreakdown.over90} units</span>
+              </div>
+              <div className="h-1.5 w-full bg-asphalt rounded-full overflow-hidden">
+                <div className="h-full bg-negative" style={{ width: `${kpis.totalRetailUnits > 0 ? (kpis.ageingBreakdown.over90 / kpis.totalRetailUnits) * 100 : 0}%` }} />
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Visual Charts */}
+        <div className="lg:col-span-3">
+          <DashboardCharts vehicles={activeVehicles || []} />
+        </div>
+
+      </div>
+
+      {/* Recent Leads & Buying Signals */}
       <div className="grid grid-cols-1 xl:grid-cols-5 gap-6">
+        
         {/* Recent Leads */}
         <div className="xl:col-span-3 bg-carbon border border-steel rounded-[2px] p-6">
-          <div className="flex items-center justify-between mb-5">
-            <h2 className="font-syne font-bold text-base text-cream">Recent Leads</h2>
-            <Link href="/leads" className="font-mono text-[11px] text-blue hover:underline uppercase tracking-wider flex items-center gap-1">
-              View all <ArrowRight size={12} />
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="font-syne font-bold text-base text-cream">Recent Customer Enquiries</h2>
+            <Link href="/leads" className="font-mono text-[11px] text-blue hover:underline uppercase flex items-center gap-1">
+              View all leads <ArrowRight size={12} />
             </Link>
           </div>
+
           <div className="space-y-1">
-            {data.recentLeads.length > 0 ? data.recentLeads.map((lead: any) => (
+            {recentLeads && recentLeads.length > 0 ? recentLeads.map((lead) => (
               <Link
                 key={lead.id}
                 href={`/leads/${lead.id}`}
-                className="flex items-center justify-between py-3 border-b border-steel/50 hover:bg-asphalt/50 px-2 -mx-2 rounded-[2px] transition-colors cursor-pointer group"
+                className="flex items-center justify-between py-3 border-b border-steel/50 hover:bg-asphalt/50 px-2 -mx-2 rounded-[2px] transition-colors group"
               >
-                <div className="flex items-center gap-4">
-                  <span className={cn(
-                    "font-mono text-[9px] px-2 py-1 border rounded-[2px] uppercase",
-                    lead.source === 'autotrader' ? "border-orange-500/20 text-orange-400 bg-orange-500/5" :
-                    lead.source === 'ebay' ? "border-blue-500/20 text-blue-400 bg-blue-500/5" :
-                    "border-blue/20 text-blue bg-blue/5"
-                  )}>
+                <div className="flex items-center gap-3">
+                  <span className="font-mono text-[9px] px-2 py-0.5 border border-blue/20 text-blue bg-blue/5 rounded-[2px] uppercase">
                     {lead.source}
                   </span>
                   <div>
-                    <p className="font-inter font-medium text-[13px] text-cream group-hover:text-blue transition-colors">
+                    <p className="font-inter font-medium text-xs text-cream group-hover:text-blue transition-colors">
                       {lead.first_name} {lead.last_name}
                     </p>
-                    <p className="font-inter text-[12px] text-silver">
-                      {(lead.vehicles as any) ? `${(lead.vehicles as any).make} ${(lead.vehicles as any).model}` : 'No vehicle'}
+                    <p className="font-inter text-[11px] text-silver">
+                      {Array.isArray(lead.vehicles) ? (lead.vehicles[0] ? `${lead.vehicles[0].make} ${lead.vehicles[0].model}` : 'General enquiry') : (lead.vehicles ? `${(lead.vehicles as any).make} ${(lead.vehicles as any).model}` : 'General enquiry')}
                     </p>
                   </div>
                 </div>
-                <div className="flex items-center gap-3">
-                  <span className={cn(
-                    "font-mono text-[9px] px-2 py-1 border rounded-[2px] uppercase",
-                    lead.status === 'new' ? "border-blue/20 text-blue bg-blue/5" :
-                    lead.status === 'won' ? "border-positive/20 text-positive bg-positive/5" :
-                    lead.status === 'lost' ? "border-negative/20 text-negative bg-negative/5" :
-                    "border-steel text-silver"
-                  )}>
+                <div className="flex items-center gap-2">
+                  <Badge variant={lead.status === 'won' ? 'positive' : 'outline'} className="font-mono text-[9px] uppercase">
                     {lead.status}
-                  </span>
+                  </Badge>
                   <span className="font-mono text-[10px] text-pewter">
                     {formatDistanceToNow(new Date(lead.created_at), { addSuffix: true })}
                   </span>
                 </div>
               </Link>
             )) : (
-              <div className="py-12 text-center">
-                <p className="font-inter text-sm text-pewter">No leads yet. They'll appear here as they come in.</p>
-              </div>
+              <p className="font-inter text-xs text-pewter py-8 text-center">No leads recorded yet.</p>
             )}
           </div>
         </div>
 
-        {/* Alerts Panel */}
-        <div className="xl:col-span-2 bg-carbon border border-steel rounded-[2px] p-6">
-          <h2 className="font-syne font-bold text-base text-cream mb-5">Alerts</h2>
-          <div className="space-y-2">
-            {overage45.length > 0 && (
-              <div className="bg-asphalt border-l-2 border-warning p-3 rounded-[2px]">
-                <div className="flex items-start gap-2">
-                  <AlertTriangle size={14} className="text-warning mt-0.5 shrink-0" />
-                  <div>
-                    <p className="font-syne font-bold text-[12px] text-cream">Price Review Due</p>
-                    <p className="font-inter text-[11px] text-silver mt-0.5">
-                      <span className="font-mono">{overage45.length}</span> vehicle{overage45.length > 1 ? 's' : ''} over 45 days on plot
-                    </p>
-                  </div>
-                </div>
-              </div>
-            )}
-            {data.leads48h > 0 && (
-              <div className="bg-asphalt border-l-2 border-blue p-3 rounded-[2px]">
-                <div className="flex items-start gap-2">
-                  <Info size={14} className="text-blue mt-0.5 shrink-0" />
-                  <div>
-                    <p className="font-syne font-bold text-[12px] text-cream">New Leads Received</p>
-                    <p className="font-inter text-[11px] text-silver mt-0.5">
-                      <span className="font-mono">{data.leads48h}</span> new lead{data.leads48h > 1 ? 's' : ''} in the last 48 hours
-                    </p>
-                  </div>
-                </div>
-              </div>
-            )}
-            <div className="bg-asphalt border-l-2 border-blue p-3 rounded-[2px]">
-              <div className="flex items-start gap-2">
-                <Info size={14} className="text-blue mt-0.5 shrink-0" />
-                <div>
-                  <p className="font-syne font-bold text-[12px] text-cream">Buying Signals Ready</p>
-                  <p className="font-inter text-[11px] text-silver mt-0.5">
-                    8 active buying recommendations in Command Centre
-                  </p>
-                </div>
-              </div>
-            </div>
-            <div className="bg-asphalt border-l-2 border-negative p-3 rounded-[2px]">
-              <div className="flex items-start gap-2">
-                <TrendingDown size={14} className="text-negative mt-0.5 shrink-0" />
-                <div>
-                  <p className="font-syne font-bold text-[12px] text-cream">Follow-ups Overdue</p>
-                  <p className="font-inter text-[11px] text-silver mt-0.5">
-                    3 leads with no contact in over 48 hours
-                  </p>
-                </div>
-              </div>
-            </div>
-          </div>
+        {/* Buying Signals Preview */}
+        <div className="xl:col-span-2">
+          <BuyingSignalsPreview signals={buyingSignals || []} />
         </div>
+
       </div>
 
-      {/* Buying Signals Preview */}
-      <BuyingSignalsPreview signals={data.buyingSignals} />
     </div>
   )
 }

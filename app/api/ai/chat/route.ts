@@ -1,9 +1,9 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import Anthropic from '@anthropic-ai/sdk'
+import { anthropicConfig } from '@/lib/config/env'
+import { toApiErrorResponse, AuthenticationError, NotFoundError, IntegrationUnavailableError } from '@/lib/errors'
 
-// We need to return a stream, so Edge runtime is often better, but for Next.js 15
-// App Router, we can just return a new Response with a ReadableStream
 export const runtime = 'nodejs'
 
 export async function POST(req: Request) {
@@ -12,7 +12,7 @@ export async function POST(req: Request) {
     const { data: { user } } = await supabase.auth.getUser()
 
     if (!user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+      throw new AuthenticationError()
     }
 
     const { data: profile } = await supabase
@@ -22,34 +22,21 @@ export async function POST(req: Request) {
       .single()
 
     if (!profile?.dealership_id) {
-      return NextResponse.json({ error: 'No dealership found' }, { status: 400 })
+      throw new NotFoundError('Dealership profile')
     }
 
     const { messages } = await req.json()
     const dealershipId = profile.dealership_id
 
-    if (!process.env.ANTHROPIC_API_KEY) {
-      // Return a mock streaming response if no key
-      const stream = new ReadableStream({
-        async start(controller) {
-          const encoder = new TextEncoder()
-          const text = "I am a simulated AI response because no Anthropic API key was found in the environment variables. Please add one to use the real chat functionality."
-          
-          for (let i = 0; i < text.length; i++) {
-            controller.enqueue(encoder.encode(text[i]))
-            await new Promise(r => setTimeout(r, 20))
-          }
-          controller.close()
-        }
-      })
-      return new Response(stream, { headers: { 'Content-Type': 'text/plain; charset=utf-8' } })
+    if (!anthropicConfig.apiKey) {
+      throw new IntegrationUnavailableError('Anthropic AI', 'unconfigured')
     }
 
     const anthropic = new Anthropic({
-      apiKey: process.env.ANTHROPIC_API_KEY || 'sk-ant-sid01-dummy-key-for-build',
+      apiKey: anthropicConfig.apiKey,
     })
 
-    // Fetch context
+    // Fetch real context
     const [stockRes, salesRes, marketRes, dealershipRes, signalsRes, leadsRes] = await Promise.all([
       supabase.from('vehicles').select('make, model, asking_price, purchase_price, prep_cost, transport_cost, created_at, status').eq('dealership_id', dealershipId),
       supabase.from('vehicles').select('make, model, sold_price, purchase_price, prep_cost, transport_cost, created_at, sold_at').eq('dealership_id', dealershipId).eq('status', 'sold').order('sold_at', { ascending: false }).limit(30),
@@ -59,15 +46,15 @@ export async function POST(req: Request) {
       supabase.from('leads').select('id, status').eq('dealership_id', dealershipId)
     ])
 
-    // Calculate some basic stats
+    // Calculate deterministic stats
     const activeLeadsCount = leadsRes.data?.filter(l => l.status !== 'won' && l.status !== 'lost').length || 0
     const wonLeadsCount = leadsRes.data?.filter(l => l.status === 'won').length || 0
     const totalClosedLeads = wonLeadsCount + (leadsRes.data?.filter(l => l.status === 'lost').length || 0)
     const conversionRate = totalClosedLeads > 0 ? (wonLeadsCount / totalClosedLeads) * 100 : 0
 
-    const systemPrompt = `You are the ForecourIQ Intelligence Analyst for ${dealershipRes.data?.name}, ${dealershipRes.data?.city}.
-    
-CURRENT STOCK:
+    const systemPrompt = `You are ForecourIQ IQ ASK — the intelligence analyst for ${dealershipRes.data?.name || 'the dealership'}, based in ${dealershipRes.data?.city || 'UK'}.
+
+CURRENT STOCK (${stockRes.data?.length || 0} vehicles):
 ${JSON.stringify(stockRes.data)}
 
 RECENT PERFORMANCE (Sold vehicles):
@@ -78,20 +65,23 @@ ACTIVE LEADS: ${activeLeadsCount}, ${conversionRate.toFixed(1)}% conversion rate
 BUYING SIGNALS ACTIVE: ${signalsRes.data?.length || 0}
 ${JSON.stringify(signalsRes.data)}
 
-REGIONAL MARKET (${dealershipRes.data?.county}):
+REGIONAL MARKET (${dealershipRes.data?.county || 'UK'}):
 ${JSON.stringify(marketRes.data)}
 
+Principle: Software determines facts. AI interprets facts.
 Be direct, specific, and commercially focused.
-Reference the dealer's actual data in every response. Never be vague.
-Keep responses concise unless specifically asked for a detailed breakdown.
+Reference the dealer's actual data in your answers. Do not fabricate inventory or financial numbers.
 Format any currency as £X,XXX.
-Format your output using Markdown.`
+Format your output using clean Markdown.`
 
     const stream = await anthropic.messages.create({
       model: 'claude-3-5-sonnet-20240620',
       max_tokens: 1000,
       system: systemPrompt,
-      messages: messages.map((m: any) => ({ role: m.role, content: m.content })),
+      messages: messages.map((m: { role: string; content: string }) => ({
+        role: m.role as 'user' | 'assistant',
+        content: m.content,
+      })),
       stream: true,
     })
 
@@ -105,8 +95,8 @@ Format your output using Markdown.`
             }
           }
         } catch (error) {
-          console.error('Streaming error:', error)
-          controller.enqueue(encoder.encode("\n\n[Error communicating with AI]"))
+          console.error('[AIChat] Streaming error:', error)
+          controller.enqueue(encoder.encode('\n\n[Error communicating with AI service]'))
         } finally {
           controller.close()
         }
@@ -119,9 +109,8 @@ Format your output using Markdown.`
         'Transfer-Encoding': 'chunked',
       },
     })
-
-  } catch (error: any) {
-    console.error('Chat API Error:', error)
-    return NextResponse.json({ error: error.message || 'Internal Server Error' }, { status: 500 })
+  } catch (error: unknown) {
+    const { body: errBody, status: errStatus } = toApiErrorResponse(error)
+    return NextResponse.json(errBody, { status: errStatus })
   }
 }

@@ -2,38 +2,65 @@
 
 import { format } from 'date-fns'
 import PortfolioHealthGauge from '@/components/command-centre/portfolio-health-gauge'
-import MarketIntelPanel from '@/components/command-centre/market-intel-panel'
+import MarketIntelPanel, { MarketObservation, StockItem } from '@/components/command-centre/market-intel-panel'
 import AiChat from '@/components/command-centre/ai-chat'
 import BuyingSignalsList from '@/components/command-centre/buying-signals-list'
 import { formatCurrency } from '@/lib/format'
 
+export interface DealershipInfo {
+  id: string
+  name: string
+  city?: string
+  county?: string
+}
+
+export interface BuyingSignalItem {
+  id: string
+  make: string
+  model: string
+  year_min?: number
+  year_max?: number
+  fuel_type?: string
+  mileage_max?: number
+  target_buy_price?: number
+  projected_retail?: number
+  projected_margin?: number
+  days_to_sell_estimate?: number
+  demand_score?: number
+  reasoning?: string
+  status: string
+}
+
+export interface VehicleStockRecord extends StockItem {
+  purchase_price?: number
+  prep_cost?: number
+  transport_cost?: number
+}
+
 export default function CommandCentreClient({ 
   dealership, 
-  initialSignals, 
-  marketData, 
-  stock 
+  initialSignals = [], 
+  marketData = [], 
+  stock = [] 
 }: { 
-  dealership: any, 
-  initialSignals: any[], 
-  marketData: any[],
-  stock: any[]
+  dealership: DealershipInfo 
+  initialSignals: BuyingSignalItem[] 
+  marketData: MarketObservation[]
+  stock: VehicleStockRecord[]
 }) {
-
-  // Calculate top metrics from initial data
+  // Calculate metrics from real data
   const activeSignalsCount = initialSignals.length
   
   const avgMargin = activeSignalsCount > 0 
-    ? initialSignals.reduce((acc, curr) => acc + Number(curr.projected_margin), 0) / activeSignalsCount
+    ? initialSignals.reduce((acc, curr) => acc + Number(curr.projected_margin || 0), 0) / activeSignalsCount
     : 0
 
   const avgDays = activeSignalsCount > 0
-    ? initialSignals.reduce((acc, curr) => acc + Number(curr.days_to_sell_estimate), 0) / activeSignalsCount
+    ? initialSignals.reduce((acc, curr) => acc + Number(curr.days_to_sell_estimate || 0), 0) / activeSignalsCount
     : 0
 
-  // Calculate portfolio health (0-100)
-  // This is a simplified calculation for demo purposes
-  // A real system would weight factors like days on plot, margin vs market avg, etc.
-  let portfolioHealth = 75 // default
+  // Calculate portfolio health (0-100) based on real margin potential and stock presence
+  let portfolioHealth = 70
   
   if (stock.length > 0) {
     const totalPotentialMargin = stock.reduce((acc, v) => {
@@ -41,12 +68,9 @@ export default function CommandCentreClient({
       return acc + (Number(v.asking_price || 0) - cost)
     }, 0)
     
-    // Some arbitrary logic to make the gauge dynamic based on seed data
     if (totalPotentialMargin / stock.length > 3000) portfolioHealth += 10
-    if (stock.length > 20) portfolioHealth += 5
-    
-    // Cap at 98
-    portfolioHealth = Math.min(98, portfolioHealth)
+    if (stock.length > 10) portfolioHealth += 5
+    portfolioHealth = Math.min(95, portfolioHealth)
   }
 
   return (
@@ -57,11 +81,11 @@ export default function CommandCentreClient({
           <div>
             <h1 className="font-syne font-bold text-[28px] text-cream mb-1">Buying Command Centre</h1>
             <p className="font-inter text-[14px] text-pewter">
-              AI-driven market intelligence for {dealership.county || dealership.city || 'your region'} · Updated daily
+              Market intelligence and AI recommendations for {dealership.county || dealership.city || 'your dealership'} · Active telemetry
             </p>
           </div>
           <div className="font-mono text-[11px] text-pewter uppercase tracking-widest bg-asphalt px-3 py-1.5 border border-steel rounded-[2px]">
-            LAST UPDATED: {format(new Date(), 'dd MMM yyyy')} 06:00
+            LAST UPDATED: {format(new Date(), 'dd MMM yyyy')}
           </div>
         </div>
       </div>

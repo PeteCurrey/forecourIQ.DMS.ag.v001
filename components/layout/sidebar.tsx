@@ -5,7 +5,11 @@ import { usePathname } from 'next/navigation';
 import { 
   LayoutDashboard, 
   Car, 
+  Wrench,
+  Users,
   Inbox, 
+  CheckSquare,
+  Calendar,
   Brain, 
   BarChart2, 
   Settings, 
@@ -19,24 +23,41 @@ import { useRouter } from 'next/navigation';
 import { Badge } from '@/components/ui/badge';
 import { useEffect, useState } from 'react';
 
-const navItems = [
+interface DealershipProfile {
+  name: string
+  subscription_tier: string
+  subscription_status: string
+}
+
+interface UserInfo {
+  id: string
+  email?: string
+  full_name?: string
+  role?: string
+}
+
+const navSections = [
   {
     label: 'OPERATIONS',
     items: [
       { label: 'Dashboard', icon: LayoutDashboard, href: '/dashboard' },
-      { label: 'Stock', icon: Car, href: '/stock', badge: 'stockCount' },
-      { label: 'Leads', icon: Inbox, href: '/leads', badge: 'leadCount' },
+      { label: 'Stockbook', icon: Car, href: '/stock', badgeKey: 'stock' },
+      { label: 'Preparation', icon: Wrench, href: '/stock/preparation', badgeKey: 'prep' },
+      { label: 'Customers', icon: Users, href: '/customers' },
+      { label: 'Leads', icon: Inbox, href: '/leads', badgeKey: 'leads' },
+      { label: 'Tasks', icon: CheckSquare, href: '/tasks', badgeKey: 'tasks' },
+      { label: 'Appointments', icon: Calendar, href: '/appointments' },
     ]
   },
   {
     label: 'INTELLIGENCE',
     items: [
-      { label: 'Command Centre', icon: Brain, href: '/command-centre', badge: 'isNewSignal' },
+      { label: 'Command Centre', icon: Brain, href: '/command-centre', badgeKey: 'signals' },
       { label: 'Analytics', icon: BarChart2, href: '/analytics' },
     ]
   },
   {
-    label: 'ACCOUNT',
+    label: 'SYSTEM',
     items: [
       { label: 'Settings', icon: Settings, href: '/settings' },
       { label: 'Billing', icon: CreditCard, href: '/settings?tab=billing' },
@@ -48,28 +69,53 @@ export default function Sidebar() {
   const pathname = usePathname();
   const router = useRouter();
   const supabase = createClient();
-  const [user, setUser] = useState<any>(null);
-  const [dealership, setDealership] = useState<any>(null);
-  const [counts, setCounts] = useState({ stockCount: 35, leadCount: 12 });
+  const [user, setUser] = useState<UserInfo | null>(null);
+  const [dealership, setDealership] = useState<DealershipProfile | null>(null);
+  const [counts, setCounts] = useState<{ stock?: number; prep?: number; leads?: number; tasks?: number; signals?: number }>({});
 
   useEffect(() => {
-    async function getProfile() {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user) {
-        setUser(user);
-        const { data: profile } = await supabase
-          .from('profiles')
-          .select('full_name, role, dealership:dealerships(*)')
-          .eq('id', user.id)
-          .single();
-        
-        if (profile) {
-          setDealership(profile.dealership);
-          setUser({ ...user, full_name: profile.full_name, role: profile.role });
+    async function loadData() {
+      const { data: { user: authUser } } = await supabase.auth.getUser();
+      if (!authUser) return;
+
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('full_name, role, dealership_id, dealerships(name, subscription_tier, subscription_status)')
+        .eq('id', authUser.id)
+        .single();
+
+      if (profile) {
+        const d = profile.dealerships as unknown as DealershipProfile | null;
+        if (d) setDealership(d);
+        setUser({
+          id: authUser.id,
+          email: authUser.email,
+          full_name: profile.full_name,
+          role: profile.role,
+        });
+
+        if (profile.dealership_id) {
+          // Fetch real counts across domain tables
+          const [stockRes, prepRes, leadsRes, tasksRes, signalsRes] = await Promise.all([
+            supabase.from('vehicles').select('id', { count: 'exact', head: true }).eq('dealership_id', profile.dealership_id).in('status', ['available', 'advertised', 'ready_for_sale']),
+            supabase.from('vehicles').select('id', { count: 'exact', head: true }).eq('dealership_id', profile.dealership_id).in('status', ['inspection', 'preparation', 'photography']),
+            supabase.from('leads').select('id', { count: 'exact', head: true }).eq('dealership_id', profile.dealership_id).eq('status', 'new'),
+            supabase.from('tasks').select('id', { count: 'exact', head: true }).eq('dealership_id', profile.dealership_id).in('status', ['open', 'in_progress']),
+            supabase.from('buying_signals').select('id', { count: 'exact', head: true }).eq('dealership_id', profile.dealership_id).eq('status', 'active'),
+          ]);
+
+          setCounts({
+            stock: stockRes.count ?? 0,
+            prep: prepRes.count ?? 0,
+            leads: leadsRes.count ?? 0,
+            tasks: tasksRes.count ?? 0,
+            signals: signalsRes.count ?? 0,
+          });
         }
       }
     }
-    getProfile();
+
+    loadData();
   }, [supabase]);
 
   const handleSignOut = async () => {
@@ -91,7 +137,7 @@ export default function Sidebar() {
       {/* Dealership Nameplate */}
       <div className="px-6 py-4 border-b border-steel">
         <p className="font-inter font-medium text-[13px] text-cream truncate">
-          {dealership?.name || 'Loading Dealership...'}
+          {dealership?.name || 'Dealership'}
         </p>
         <div className="flex items-center gap-2 mt-1">
           <div className={cn(
@@ -99,22 +145,25 @@ export default function Sidebar() {
             dealership?.subscription_status === 'active' ? "bg-positive" : "bg-blue"
           )} />
           <span className="font-mono text-[10px] text-pewter uppercase tracking-wider">
-            {dealership?.subscription_tier || 'Elite'} Plan · {dealership?.subscription_status || 'Active'}
+            {dealership?.subscription_tier || 'Starter'} Plan · {dealership?.subscription_status || 'Active'}
           </span>
         </div>
       </div>
 
       {/* Navigation */}
       <nav className="flex-1 overflow-y-auto py-4">
-        {navItems.map((section) => (
+        {navSections.map((section) => (
           <div key={section.label} className="mb-6">
             <h3 className="px-6 mb-2 font-mono text-[10px] text-muted uppercase tracking-[0.16em]">
               {section.label}
             </h3>
             <div className="space-y-1 px-2">
               {section.items.map((item) => {
-                const isActive = pathname === item.href || (item.href !== '/dashboard' && pathname.startsWith(item.href));
+                const isActive = item.href === '/stock' 
+                  ? pathname === '/stock'
+                  : pathname === item.href || (item.href !== '/dashboard' && pathname.startsWith(item.href));
                 const Icon = item.icon;
+                const badgeCount = item.badgeKey ? counts[item.badgeKey as keyof typeof counts] : undefined;
                 
                 return (
                   <Link
@@ -123,17 +172,17 @@ export default function Sidebar() {
                     className={cn(
                       "flex items-center justify-between px-4 py-2.5 rounded-[2px] transition-colors group",
                       isActive 
-                        ? "bg-blue/5 text-cream border-l-2 border-blue" 
+                        ? "bg-blue/5 text-cream border-l-2 border-blue font-medium" 
                         : "text-silver hover:bg-asphalt hover:text-cream"
                     )}
                   >
                     <div className="flex items-center gap-3">
                       <Icon size={16} className={cn(isActive ? "text-blue" : "text-pewter group-hover:text-silver")} />
-                      <span className="font-inter text-[13px] font-medium">{item.label}</span>
+                      <span className="font-inter text-[13px]">{item.label}</span>
                     </div>
-                    {item.badge && (
+                    {badgeCount !== undefined && badgeCount > 0 && (
                       <Badge variant={isActive ? "blue" : "outline"} className="h-4 px-1.5 font-mono text-[9px]">
-                        {item.badge === 'isNewSignal' ? 'NEW' : counts[item.badge as keyof typeof counts]}
+                        {badgeCount}
                       </Badge>
                     )}
                   </Link>
@@ -144,19 +193,6 @@ export default function Sidebar() {
         ))}
       </nav>
 
-      {/* Trial Banner (if trialing) */}
-      {dealership?.subscription_status === 'trialing' && (
-        <div className="mx-2 mb-2 p-3 bg-asphalt border border-warning rounded-[2px]">
-          <div className="flex items-center gap-2 mb-1">
-            <Badge variant="warning" className="text-[9px]">Trial</Badge>
-            <span className="font-inter text-[11px] text-silver">12 days remaining</span>
-          </div>
-          <Link href="/settings?tab=billing" className="font-syne font-bold text-[10px] text-blue hover:underline uppercase tracking-wider">
-            Upgrade now →
-          </Link>
-        </div>
-      )}
-
       {/* User Panel */}
       <div className="p-4 border-t border-steel bg-carbon flex items-center justify-between">
         <div className="flex items-center gap-3 overflow-hidden">
@@ -165,10 +201,10 @@ export default function Sidebar() {
           </div>
           <div className="overflow-hidden">
             <p className="font-inter font-medium text-[13px] text-cream truncate">
-              {user?.full_name || 'Loading...'}
+              {user?.full_name || 'Dealer User'}
             </p>
             <p className="font-mono text-[10px] text-pewter uppercase tracking-wider truncate">
-              {user?.role || 'Sales'}
+              {user?.role || 'Admin'}
             </p>
           </div>
         </div>
