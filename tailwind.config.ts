@@ -33,8 +33,9 @@ const config: Config = {
         negative: 'var(--negative)',
       },
       fontFamily: {
-        syne: ['var(--font-syne)', 'sans-serif'],
-        inter: ['var(--font-inter)', 'sans-serif'],
+        sans: ['var(--font-sans)', 'sans-serif'],
+        inter: ['var(--font-sans)', 'sans-serif'],
+        syne: ['var(--font-sans)', 'sans-serif'],
         mono: ['var(--font-mono)', 'monospace'],
       },
       borderRadius: {

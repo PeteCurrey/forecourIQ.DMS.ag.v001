@@ -53,8 +53,9 @@
   --color-negative: var(--negative);
   --color-sidebar: var(--sidebar);
 
-  --font-syne: var(--font-syne), sans-serif;
-  --font-inter: var(--font-inter), sans-serif;
+  --font-sans: var(--font-sans), sans-serif;
+  --font-syne: var(--font-sans), sans-serif;
+  --font-inter: var(--font-sans), sans-serif;
   --font-mono: var(--font-mono), monospace;
 
   --radius-default: 2px;
@@ -66,12 +67,12 @@
     color: var(--color-cream);
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
-    font-family: var(--font-inter);
+    font-family: var(--font-sans);
     transition: background-color 0.25s ease, color 0.25s ease, border-color 0.25s ease;
   }
 
   h1, h2, h3, h4, h5, h6 {
-    font-family: var(--font-inter);
+    font-family: var(--font-sans);
     font-weight: 600;
     color: var(--color-cream);
     letter-spacing: -0.02em;
@@ -79,15 +80,20 @@
 
   /* Page titles and major identity headings */
   .font-syne-title {
-    font-family: var(--font-syne);
+    font-family: var(--font-sans);
     font-weight: 600;
-    letter-spacing: -0.025em;
+    letter-spacing: -0.02em;
   }
 
   /* Monospace typography strictly for IDs, reg numbers, codes */
   .font-mono {
     font-family: var(--font-mono);
-    letter-spacing: -0.02em;
+    letter-spacing: -0.01em;
+  }
+
+  /* Quantitative and Financial Numerals */
+  .tabular-nums {
+    font-variant-numeric: tabular-nums;
   }
 
   /* Custom scrollbar */

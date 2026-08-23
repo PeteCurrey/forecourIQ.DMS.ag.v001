@@ -1,19 +1,13 @@
 import type { Metadata } from "next";
-import { Inter, Syne, JetBrains_Mono } from "next/font/google";
+import { Instrument_Sans, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 import { Toaster } from "sonner";
 import Providers from "@/components/layout/providers";
 
-const inter = Inter({
+const instrumentSans = Instrument_Sans({
   subsets: ["latin"],
-  weight: ["300", "400", "500", "600"],
-  variable: "--font-inter",
-});
-
-const syne = Syne({
-  subsets: ["latin"],
-  weight: ["400", "600", "700", "800"],
-  variable: "--font-syne",
+  weight: ["400", "500", "600", "700"],
+  variable: "--font-sans",
 });
 
 const jetbrainsMono = JetBrains_Mono({
@@ -33,19 +27,19 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className={`${inter.variable} ${syne.variable} ${jetbrainsMono.variable}`} suppressHydrationWarning>
-      <body className="bg-void text-cream antialiased font-inter">
+    <html lang="en" className={`${instrumentSans.variable} ${jetbrainsMono.variable}`} suppressHydrationWarning>
+      <body className="bg-void text-cream antialiased font-sans">
         <Providers>
           {children}
           <Toaster 
             position="bottom-right" 
             toastOptions={{
-              className: "border font-inter text-[13px]",
+              className: "border font-sans text-[13px]",
               style: {
                 background: 'var(--carbon)',
                 borderColor: 'var(--steel)',
                 color: 'var(--cream)',
-                fontFamily: 'var(--font-inter)',
+                fontFamily: 'var(--font-sans)',
               },
             }}
           />
