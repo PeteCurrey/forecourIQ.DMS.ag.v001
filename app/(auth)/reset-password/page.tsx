@@ -239,8 +239,9 @@ export default function ResetPasswordPage() {
 
       {/* Left 50% — Dark Cinematic Automotive Image */}
       <div className="relative md:w-1/2 h-56 md:h-auto min-h-[220px] md:min-h-screen flex flex-col justify-between p-6 md:p-12 overflow-hidden bg-[#07080B]">
+        {/* Aston Martin Hero Asset (Flipped Horizontally) */}
         <div 
-          className="absolute inset-0 bg-cover bg-center opacity-85 scale-100"
+          className="absolute inset-0 bg-cover bg-center opacity-85 scale-x-[-1]"
           style={{ backgroundImage: 'url("/images/supercar-hero.png")' }}
         />
 
