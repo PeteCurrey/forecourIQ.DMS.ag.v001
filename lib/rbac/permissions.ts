@@ -39,7 +39,12 @@ export type PermissionKey =
   | 'intelligence.read'
   | 'intelligence.act'
   | 'users.manage'
+  | 'integrations.read'
   | 'integrations.manage'
+  | 'advertising.read'
+  | 'advertising.publish'
+  | 'accounting.sync'
+  | 'accounting.manage'
   | 'billing.manage'
   | 'settings.manage'
 

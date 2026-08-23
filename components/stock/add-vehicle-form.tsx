@@ -114,22 +114,29 @@ export default function AddVehicleForm({
     setIsLookingUp(true)
     setDvlaStatusMessage(null)
     try {
-      const res = await fetch(`/api/dvla/${regValue.trim().toUpperCase()}`)
-      const data = await res.json()
-      
-      if (data.status === 'NOT_YET_IMPLEMENTED') {
-        setDvlaStatusMessage('Vehicle lookup unavailable — commercial data agreement required. Enter details manually below.')
+      const res = await fetch('/api/vehicle-data/lookup', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ registration: regValue.trim().toUpperCase() }),
+      })
+      const result = await res.json()
+
+      if (result.isManualFallback || !result.success) {
+        setDvlaStatusMessage(result.error || 'DVLA lookup unconfigured. Please enter vehicle details manually below.')
         setStep(2)
         return
       }
 
-      if (!res.ok) throw new Error(data.error || 'Lookup failed')
-
-      if (data.make) setValue('make', data.make)
-      if (data.yearOfManufacture) setValue('year', data.yearOfManufacture)
-      if (data.colour) setValue('colour', data.colour)
-      
-      toast.success('Vehicle details fetched')
+      const data = result.data
+      if (data) {
+        if (data.make) setValue('make', data.make)
+        if (data.model) setValue('model', data.model)
+        if (data.year) setValue('year', data.year)
+        if (data.colour) setValue('colour', data.colour)
+        if (data.fuel_type) setValue('fuel_type', data.fuel_type)
+        if (data.engine_capacity_cc) setValue('engine_size', `${(data.engine_capacity_cc / 1000).toFixed(1)}L`)
+        toast.success(`DVLA data retrieved for ${data.registration}`)
+      }
       setStep(2)
     } catch {
       setDvlaStatusMessage('Vehicle lookup unavailable — enter details manually.')

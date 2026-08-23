@@ -69,6 +69,16 @@ export type AuditAction =
   // Integrations
   | 'integration.connected'
   | 'integration.disconnected'
+  | 'integration.credentials_updated'
+  | 'integration.sync_triggered'
+  | 'vehicle.lookup_completed'
+  | 'valuation.retrieved'
+  | 'listing.published'
+  | 'listing.updated'
+  | 'listing.withdrawn'
+  | 'listing.failed'
+  | 'accounting.invoice_synced'
+  | 'accounting.sync_failed'
   // AI
   | 'ai.recommendation_accepted'
   | 'ai.recommendation_dismissed'

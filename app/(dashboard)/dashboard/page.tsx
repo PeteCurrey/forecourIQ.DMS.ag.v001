@@ -15,7 +15,9 @@ import {
   Car, 
   PoundSterling,
   Plus,
-  Handshake
+  Handshake,
+  Layers,
+  Link2
 } from 'lucide-react'
 import DashboardCharts from '@/components/dashboard/dashboard-charts'
 import BuyingSignalsPreview from '@/components/dashboard/buying-signals-preview'
@@ -58,6 +60,7 @@ export default async function DashboardPage() {
     { data: overdueLeads },
     { data: recentLeads },
     { data: buyingSignals },
+    { data: portalListings },
   ] = await Promise.all([
     VehicleService.getStockKPIs(dealershipId),
     DealService.getKPIs(dealershipId),
@@ -68,7 +71,11 @@ export default async function DashboardPage() {
     supabase.from('leads').select('id, first_name, last_name, status, created_at, vehicles(make, model, registration)').eq('dealership_id', dealershipId).in('status', ['new', 'contacted']).lt('created_at', twoDaysAgo.toISOString()),
     supabase.from('leads').select('*, vehicles(make, model, registration)').eq('dealership_id', dealershipId).order('created_at', { ascending: false }).limit(6),
     supabase.from('buying_signals').select('*').eq('dealership_id', dealershipId).eq('status', 'active').order('demand_score', { ascending: false }).limit(3),
+    supabase.from('portal_listings').select('status').eq('dealership_id', dealershipId),
   ])
+
+  const liveAdvertsCount = (portalListings || []).filter(l => l.status === 'live').length
+  const pendingAdvertsCount = (portalListings || []).filter(l => l.status === 'update_pending').length
 
   const hour = now.getHours()
   const firstName = profile?.full_name?.split(' ')[0] || 'there'
@@ -177,6 +184,41 @@ export default async function DashboardPage() {
           <div className="bg-asphalt p-3 rounded-[2px] border border-steel">
             <span className="text-pewter uppercase text-[10px] block">Agreed & Awaiting Delivery</span>
             <span className="text-xl font-bold text-positive">{dealKpis.byStatus?.agreed || 0}</span>
+          </div>
+        </div>
+      </div>
+
+      {/* ADVERTISING & INTEGRATIONS FEED STATUS */}
+      <div className="bg-carbon border border-steel rounded-[2px] p-5">
+        <div className="flex items-center justify-between mb-3 pb-2 border-b border-steel">
+          <div className="flex items-center gap-2">
+            <Layers size={18} className="text-blue" />
+            <h2 className="font-syne font-bold text-base text-cream">ADVERTISING & PORTAL FEEDS</h2>
+          </div>
+          <Link href="/advertising" className="text-xs text-blue hover:underline font-mono flex items-center gap-1">
+            MANAGE FEEDS <ArrowRight size={12} />
+          </Link>
+        </div>
+
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-xs font-mono">
+          <div className="bg-asphalt p-3 rounded-[2px] border border-steel">
+            <span className="text-pewter uppercase text-[10px] block">Live Portal Adverts</span>
+            <span className="text-xl font-bold text-emerald-400">{liveAdvertsCount}</span>
+          </div>
+
+          <div className="bg-asphalt p-3 rounded-[2px] border border-steel">
+            <span className="text-pewter uppercase text-[10px] block">Pending Price Updates</span>
+            <span className="text-xl font-bold text-blue">{pendingAdvertsCount}</span>
+          </div>
+
+          <div className="bg-asphalt p-3 rounded-[2px] border border-steel">
+            <span className="text-pewter uppercase text-[10px] block">AutoTrader Connect</span>
+            <span className="text-xl font-bold text-cream">Ready</span>
+          </div>
+
+          <div className="bg-asphalt p-3 rounded-[2px] border border-steel">
+            <span className="text-pewter uppercase text-[10px] block">Accounting (Xero)</span>
+            <span className="text-xl font-bold text-silver">Configured</span>
           </div>
         </div>
       </div>
