@@ -171,6 +171,10 @@
   animation: sectionReveal 500ms cubic-bezier(0.16, 1, 0.3, 1) 350ms both;
 }
 
+.reveal-7 {
+  animation: sectionReveal 550ms cubic-bezier(0.16, 1, 0.3, 1) 420ms both;
+}
+
 .animate-fade-in {
   animation: sectionReveal 400ms cubic-bezier(0.16, 1, 0.3, 1) both;
 }
@@ -182,6 +186,7 @@
   .reveal-4,
   .reveal-5,
   .reveal-6,
+  .reveal-7,
   .animate-fade-in {
     animation: none !important;
     opacity: 1 !important;

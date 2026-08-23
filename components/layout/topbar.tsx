@@ -1,12 +1,13 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
-import { Bell, Search, LogOut, Settings, Shield } from 'lucide-react'
+import { Search, LogOut, Settings, Shield } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 import { getInitials } from '@/lib/utils'
 import Link from 'next/link'
 import ThemeToggle from './theme-toggle'
+import NotificationDropdown from './notification-dropdown'
 
 interface CurrentUser {
   id: string
@@ -83,13 +84,7 @@ export default function Topbar() {
         <ThemeToggle />
 
         {/* Notifications */}
-        <button 
-          className="relative p-1.5 text-pewter hover:text-cream transition-colors rounded-[2px] hover:bg-asphalt"
-          aria-label="Notifications"
-        >
-          <Bell size={16} />
-          <span className="absolute top-1.5 right-1.5 w-1.5 h-1.5 bg-blue rounded-full" />
-        </button>
+        <NotificationDropdown />
 
         {/* User Profile Avatar with Dropdown Menu */}
         <div className="relative pl-3 border-l border-steel/60" ref={menuRef}>

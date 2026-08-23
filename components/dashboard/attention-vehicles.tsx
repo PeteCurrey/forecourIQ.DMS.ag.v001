@@ -5,7 +5,6 @@ import { formatCurrency } from '@/lib/format';
 import { cn } from '@/lib/utils';
 import { Car, ChevronRight, AlertTriangle, Clock, Tag, Wrench, ArrowLeftRight } from 'lucide-react';
 import Link from 'next/link';
-import Image from 'next/image';
 
 interface AttentionVehiclesProps {
   vehicles: AttentionVehicle[];
@@ -16,86 +15,101 @@ export default function AttentionVehicles({ vehicles, canViewMargin }: Attention
   if (!vehicles || vehicles.length === 0) {
     return (
       <div className="bg-carbon border border-steel rounded-lg p-6 text-center text-xs text-pewter">
-        No vehicles currently require urgent attention.
+        No vehicles currently require urgent operational attention.
       </div>
     );
   }
 
-  const getReasonIcon = (type: string) => {
+  const getReasonBadge = (type: string) => {
     switch (type) {
-      case 'prep': return <Wrench className="w-3.5 h-3.5 text-amber-600" />;
-      case 'ageing': return <Clock className="w-3.5 h-3.5 text-red-600" />;
-      case 'pricing': return <Tag className="w-3.5 h-3.5 text-blue" />;
-      case 'transfer': return <ArrowLeftRight className="w-3.5 h-3.5 text-purple-600" />;
-      default: return <AlertTriangle className="w-3.5 h-3.5 text-amber-600" />;
+      case 'prep':
+        return <span className="text-[10px] uppercase font-mono font-semibold text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200">PREPARATION</span>;
+      case 'ageing':
+        return <span className="text-[10px] uppercase font-mono font-semibold text-red-600 bg-red-50 px-1.5 py-0.5 rounded border border-red-200">AGEING</span>;
+      case 'pricing':
+        return <span className="text-[10px] uppercase font-mono font-semibold text-blue bg-blue-tint px-1.5 py-0.5 rounded border border-blue/20">PRICING</span>;
+      case 'transfer':
+        return <span className="text-[10px] uppercase font-mono font-semibold text-purple-600 bg-purple-50 px-1.5 py-0.5 rounded border border-purple-200">TRANSFER</span>;
+      default:
+        return <span className="text-[10px] uppercase font-mono font-semibold text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200">ATTENTION</span>;
     }
   };
 
   return (
-    <div className="space-y-2">
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
       {vehicles.map((v) => (
         <div
           key={v.id}
-          className="bg-carbon border border-steel rounded-lg p-3 hover:border-cream/30 transition-all flex flex-col sm:flex-row items-start sm:items-center gap-3.5"
+          className="bg-carbon border border-steel rounded-lg overflow-hidden flex flex-col justify-between group hover:border-cream/40 transition-colors"
         >
-          {/* 90-110px Vehicle Image Thumbnail */}
-          <div className="w-24 h-16 sm:w-28 sm:h-18 bg-asphalt rounded border border-steel overflow-hidden relative shrink-0 flex items-center justify-center">
+          {/* Media Container with 1.025x hover zoom */}
+          <div className="w-full h-36 bg-asphalt overflow-hidden relative flex items-center justify-center">
             {v.imageUrl ? (
               <img
                 src={v.imageUrl}
                 alt={`${v.make} ${v.model}`}
-                className="w-full h-full object-cover"
+                className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
                 loading="lazy"
               />
             ) : (
-              <Car className="w-6 h-6 text-pewter" />
+              <div className="flex flex-col items-center justify-center text-pewter">
+                <Car className="w-8 h-8 mb-1" />
+                <span className="text-[10px]">No Photo</span>
+              </div>
             )}
-          </div>
 
-          {/* Vehicle Identity & Reason */}
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2 mb-1">
-              <span className="font-mono text-[11px] font-medium bg-asphalt border border-steel px-1.5 py-0.5 rounded text-cream">
+            {/* Top Plate Badge */}
+            <div className="absolute top-2 left-2">
+              <span className="font-mono text-[10px] font-bold bg-carbon/90 backdrop-blur-xs border border-steel px-1.5 py-0.5 rounded text-cream shadow-xs">
                 {v.registration}
               </span>
-              <span className="text-[11px] text-pewter capitalize">
-                {v.daysInStock}d in stock
-              </span>
             </div>
 
-            <div className="text-[13px] font-medium text-cream truncate">
-              {v.make} {v.model} {v.variant && <span className="text-pewter text-xs font-normal">· {v.variant}</span>}
-            </div>
-
-            <div className="flex items-center gap-1.5 text-xs mt-1">
-              {getReasonIcon(v.reasonType)}
-              <span className="text-cream font-medium truncate">{v.reason}</span>
+            {/* Top Right Status */}
+            <div className="absolute top-2 right-2">
+              {getReasonBadge(v.reasonType)}
             </div>
           </div>
 
-          {/* Financials & Action */}
-          <div className="flex items-center justify-between sm:justify-end w-full sm:w-auto gap-4 shrink-0 pt-2 sm:pt-0 border-t sm:border-0 border-steel">
-            <div className="text-left sm:text-right">
-              {v.askingPrice && (
-                <div className="text-[13px] font-semibold text-cream tabular-nums">
-                  {formatCurrency(v.askingPrice)}
-                </div>
+          {/* Vehicle Body Content */}
+          <div className="p-3.5 flex-1 flex flex-col justify-between space-y-3">
+            <div>
+              <div className="font-sans font-semibold text-xs text-cream truncate">
+                {v.make} {v.model}
+              </div>
+              {v.variant && (
+                <div className="text-[11px] text-pewter truncate mt-0.5">{v.variant}</div>
               )}
-              {canViewMargin && v.investedCost && (
-                <div className="text-[11px] text-pewter tabular-nums">
-                  Inv: {formatCurrency(v.investedCost)}
-                </div>
-              )}
+              <div className="text-xs text-cream font-medium mt-1.5 flex items-center gap-1.5">
+                <span className="text-pewter text-[11px] leading-tight">{v.reason}</span>
+              </div>
             </div>
 
-            <Link
-              href={v.actionUrl}
-              className="p-1.5 rounded-full hover:bg-asphalt text-pewter hover:text-cream transition-colors"
-              title="Review vehicle"
-            >
-              <ChevronRight className="w-4 h-4" />
-            </Link>
+            {/* Financial Ledger & Link */}
+            <div className="pt-2 border-t border-steel flex items-center justify-between">
+              <div>
+                {v.askingPrice && (
+                  <div className="text-xs font-bold text-cream tabular-nums">
+                    {formatCurrency(v.askingPrice)} <span className="text-[10px] text-pewter font-normal">retail</span>
+                  </div>
+                )}
+                {canViewMargin && v.investedCost && (
+                  <div className="text-[10px] text-pewter tabular-nums">
+                    Inv: {formatCurrency(v.investedCost)}
+                  </div>
+                )}
+              </div>
+
+              <Link
+                href={v.actionUrl}
+                className="text-xs text-cream font-medium flex items-center gap-1 hover:underline group-hover:text-blue transition-colors"
+              >
+                <span>Review</span>
+                <ChevronRight className="w-3.5 h-3.5" />
+              </Link>
+            </div>
           </div>
+
         </div>
       ))}
     </div>
