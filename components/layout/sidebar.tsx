@@ -25,7 +25,10 @@ import {
   Eye,
   FileText,
   ShieldCheck,
-  Shield
+  Shield,
+  MessageCircle,
+  Rocket,
+  MonitorDot
 } from 'lucide-react';
 import { cn, getInitials } from '@/lib/utils';
 import { createClient } from '@/lib/supabase/client';
@@ -82,7 +85,10 @@ const navSections = [
       { label: 'IQ Operating Policy', icon: Shield, href: '/settings/iq' },
       { label: 'Intelligence Strategy', icon: Settings, href: '/settings/intelligence' },
       { label: 'Settings', icon: Settings, href: '/settings' },
-      { label: 'Billing', icon: CreditCard, href: '/settings?tab=billing' },
+      { label: 'Billing & Plan', icon: CreditCard, href: '/settings/billing' },
+      { label: 'Support', icon: MessageCircle, href: '/support' },
+      { label: 'Dealership Setup', icon: Rocket, href: '/onboarding' },
+      { label: 'Platform Console', icon: MonitorDot, href: '/platform' },
     ]
   }
 ];
