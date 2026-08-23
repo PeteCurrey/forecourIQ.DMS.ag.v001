@@ -79,6 +79,16 @@ export type AuditAction =
   | 'listing.failed'
   | 'accounting.invoice_synced'
   | 'accounting.sync_failed'
+  // Website
+  | 'website.config_updated'
+  | 'website.published'
+  | 'website.domain_added'
+  | 'website.domain_removed'
+  | 'website.page_created'
+  | 'website.page_updated'
+  | 'website.page_deleted'
+  | 'website.redirect_created'
+  | 'website.redirect_deleted'
   // AI
   | 'ai.recommendation_accepted'
   | 'ai.recommendation_dismissed'

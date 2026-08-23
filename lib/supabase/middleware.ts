@@ -38,6 +38,12 @@ export async function updateSession(request: NextRequest) {
   const isDashboardRoute = url.pathname.startsWith('/dashboard') || 
                           url.pathname.startsWith('/stock') || 
                           url.pathname.startsWith('/leads') || 
+                          url.pathname.startsWith('/deals') ||
+                          url.pathname.startsWith('/inbox') ||
+                          url.pathname.startsWith('/tasks') ||
+                          url.pathname.startsWith('/appointments') ||
+                          url.pathname.startsWith('/advertising') ||
+                          url.pathname.startsWith('/website') ||
                           url.pathname.startsWith('/command-centre') || 
                           url.pathname.startsWith('/analytics') || 
                           url.pathname.startsWith('/settings') || 

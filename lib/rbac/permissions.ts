@@ -45,6 +45,12 @@ export type PermissionKey =
   | 'advertising.publish'
   | 'accounting.sync'
   | 'accounting.manage'
+  | 'website.read'
+  | 'website.edit'
+  | 'website.publish'
+  | 'website.branding'
+  | 'website.domains'
+  | 'website.analytics'
   | 'billing.manage'
   | 'settings.manage'
 

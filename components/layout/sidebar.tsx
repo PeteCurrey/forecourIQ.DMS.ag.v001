@@ -18,7 +18,8 @@ import {
   User,
   Handshake,
   Layers,
-  Link2
+  Link2,
+  Globe
 } from 'lucide-react';
 import { cn, getInitials } from '@/lib/utils';
 import { createClient } from '@/lib/supabase/client';
@@ -45,6 +46,7 @@ const navSections = [
     items: [
       { label: 'Dashboard', icon: LayoutDashboard, href: '/dashboard' },
       { label: 'Stockbook', icon: Car, href: '/stock', badgeKey: 'stock' },
+      { label: 'Dealer Website', icon: Globe, href: '/website' },
       { label: 'Advertising', icon: Layers, href: '/advertising' },
       { label: 'Preparation', icon: Wrench, href: '/stock/preparation', badgeKey: 'prep' },
       { label: 'Inbox', icon: Inbox, href: '/inbox', badgeKey: 'inbox' },
