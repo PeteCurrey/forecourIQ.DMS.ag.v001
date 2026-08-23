@@ -7,9 +7,9 @@ export default function BuyingSignalsPreview({ signals }: { signals: any[] }) {
   return (
     <div className="bg-carbon border border-steel rounded-[2px] p-6">
       <div className="flex items-center justify-between mb-5">
-        <h2 className="font-syne font-bold text-base text-cream">Today's Top Signals</h2>
-        <Link href="/command-centre" className="font-mono text-[11px] text-blue hover:underline uppercase tracking-wider flex items-center gap-1">
-          View all <ArrowRight size={12} />
+        <h2 className="font-syne font-bold text-base text-cream">Buying Intelligence Signals</h2>
+        <Link href="/intelligence/buying" className="font-mono text-[11px] text-blue hover:underline uppercase tracking-wider flex items-center gap-1">
+          View all signals <ArrowRight size={12} />
         </Link>
       </div>
 

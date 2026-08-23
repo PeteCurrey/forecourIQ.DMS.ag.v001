@@ -19,7 +19,10 @@ import {
   Handshake,
   Layers,
   Link2,
-  Globe
+  Globe,
+  ShoppingBag,
+  Tag,
+  Eye
 } from 'lucide-react';
 import { cn, getInitials } from '@/lib/utils';
 import { createClient } from '@/lib/supabase/client';
@@ -61,6 +64,10 @@ const navSections = [
     label: 'INTELLIGENCE',
     items: [
       { label: 'Command Centre', icon: Brain, href: '/command-centre', badgeKey: 'signals' },
+      { label: 'Market Demand', icon: BarChart2, href: '/intelligence/market' },
+      { label: 'Buying Intelligence', icon: ShoppingBag, href: '/intelligence/buying' },
+      { label: 'Pricing Attention', icon: Tag, href: '/intelligence/pricing' },
+      { label: 'Competitor Tracking', icon: Eye, href: '/intelligence/competitors' },
       { label: 'Analytics', icon: BarChart2, href: '/analytics' },
     ]
   },
@@ -68,6 +75,7 @@ const navSections = [
     label: 'SYSTEM',
     items: [
       { label: 'Integrations', icon: Link2, href: '/settings/integrations' },
+      { label: 'Intelligence Strategy', icon: Settings, href: '/settings/intelligence' },
       { label: 'Settings', icon: Settings, href: '/settings' },
       { label: 'Billing', icon: CreditCard, href: '/settings?tab=billing' },
     ]

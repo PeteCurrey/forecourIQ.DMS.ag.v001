@@ -1,68 +1,53 @@
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
-import CommandCentreClient, { DealershipInfo, BuyingSignalItem, VehicleStockRecord } from './command-centre-client'
-import { MarketObservation } from '@/components/command-centre/market-intel-panel'
+import { MarketService } from '@/lib/services/intelligence/market-service'
+import { BuyingService } from '@/lib/services/intelligence/buying-service'
+import { PricingService } from '@/lib/services/intelligence/pricing-service'
+import { StockRiskService } from '@/lib/services/intelligence/stock-risk-service'
+import CommandCentreClient from './command-centre-client'
 
 export const metadata = {
-  title: 'Command Centre | ForecourIQ DMS',
+  title: 'Commercial Command Centre | ForecourIQ DMS',
 }
 
 export default async function CommandCentrePage() {
   const supabase = await createClient()
-  
+
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
   const { data: profile } = await supabase
     .from('profiles')
-    .select('dealership_id')
+    .select('dealership_id, dealerships(id, name, city, county)')
     .eq('id', user.id)
     .single()
 
   if (!profile?.dealership_id) redirect('/onboarding')
 
-  // 1. Dealership details for context
-  const { data: dealership } = await supabase
-    .from('dealerships')
-    .select('id, name, city, county')
-    .eq('id', profile.dealership_id)
-    .single()
-
-  // 2. Buying signals
-  const { data: signals } = await supabase
-    .from('buying_signals')
-    .select('*')
-    .eq('dealership_id', profile.dealership_id)
-    .eq('status', 'active')
-    .order('demand_score', { ascending: false })
-
-  // 3. Market Data
-  const { data: marketData } = await supabase
-    .from('market_data')
-    .select('*')
-    .eq('dealership_id', profile.dealership_id)
-    .order('demand_score', { ascending: false })
-
-  // 4. Basic Stock Stats for Portfolio Health
-  const { data: stock } = await supabase
-    .from('vehicles')
-    .select('id, make, model, asking_price, purchase_price, prep_cost, transport_cost, created_at, status')
-    .eq('dealership_id', profile.dealership_id)
-    .eq('status', 'available')
-
-  const safeDealership: DealershipInfo = dealership || {
+  const dealership = (profile.dealerships as any) || {
     id: profile.dealership_id,
     name: 'Your Dealership',
     city: 'UK',
     county: 'UK',
   }
 
+  const [overview, buyingSignals, pricingSignals, capitalExposure, stockRiskSignals] = await Promise.all([
+    MarketService.getMarketOverview(profile.dealership_id),
+    BuyingService.getBuyingSignals(profile.dealership_id),
+    PricingService.getPricingSignals(profile.dealership_id),
+    StockRiskService.getCapitalExposureSummary(profile.dealership_id),
+    StockRiskService.getStockRiskSignals(profile.dealership_id),
+  ])
+
   return (
-    <CommandCentreClient 
-      dealership={safeDealership}
-      initialSignals={(signals || []) as BuyingSignalItem[]}
-      marketData={(marketData || []) as MarketObservation[]}
-      stock={(stock || []) as VehicleStockRecord[]}
+    <CommandCentreClient
+      dealership={dealership}
+      overview={overview}
+      buyingSignals={buyingSignals}
+      pricingSignals={pricingSignals}
+      capitalExposure={capitalExposure}
+      stockRiskSignals={stockRiskSignals}
+      userId={user.id}
     />
   )
 }

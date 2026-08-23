@@ -44,6 +44,7 @@ export async function updateSession(request: NextRequest) {
                           url.pathname.startsWith('/appointments') ||
                           url.pathname.startsWith('/advertising') ||
                           url.pathname.startsWith('/website') ||
+                          url.pathname.startsWith('/intelligence') ||
                           url.pathname.startsWith('/command-centre') || 
                           url.pathname.startsWith('/analytics') || 
                           url.pathname.startsWith('/settings') || 
