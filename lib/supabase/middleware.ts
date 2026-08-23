@@ -53,6 +53,7 @@ export async function updateSession(request: NextRequest) {
   // Auth routes
   const isAuthRoute = url.pathname.startsWith('/login') || 
                       url.pathname.startsWith('/signup') || 
+                      url.pathname.startsWith('/reset-password') || 
                       url.pathname.startsWith('/callback')
 
   if (!user && isDashboardRoute) {

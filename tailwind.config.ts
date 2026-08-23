@@ -12,6 +12,7 @@ const config: Config = {
       colors: {
         void: '#07080B',
         carbon: '#0D0F14',
+        graphite: '#10131A',
         asphalt: '#13161C',
         steel: '#1C2029',
         slate: '#252B37',
@@ -24,6 +25,7 @@ const config: Config = {
         silver: '#9DA8B7',
         pewter: '#5C6478',
         muted: '#353D4C',
+        divider: '#181C24',
         positive: '#3DB87A',
         warning: '#D4922A',
         negative: '#C94040',

@@ -146,9 +146,9 @@ export default function Sidebar() {
   };
 
   return (
-    <aside className="w-[240px] h-screen bg-carbon border-r border-steel fixed left-0 top-0 flex flex-col z-50">
+    <aside className="w-[240px] h-screen bg-void border-r border-steel/80 fixed left-0 top-0 flex flex-col z-50">
       {/* Logo */}
-      <div className="h-16 flex items-center px-6 border-b border-steel">
+      <div className="h-[60px] flex items-center px-6 border-b border-steel/80">
         <Link href="/dashboard" className="flex items-center gap-1">
           <span className="font-syne font-bold text-lg text-cream tracking-tight">Forecour</span>
           <span className="font-syne font-bold text-lg text-blue tracking-tight">IQ</span>
@@ -156,29 +156,29 @@ export default function Sidebar() {
       </div>
 
       {/* Dealership Nameplate */}
-      <div className="px-6 py-4 border-b border-steel">
+      <div className="px-6 py-3.5 border-b border-steel/60 bg-carbon/40">
         <p className="font-inter font-medium text-[13px] text-cream truncate">
           {dealership?.name || 'Dealership'}
         </p>
-        <div className="flex items-center gap-2 mt-1">
+        <div className="flex items-center gap-2 mt-0.5">
           <div className={cn(
             "w-1.5 h-1.5 rounded-full",
-            dealership?.subscription_status === 'active' ? "bg-positive" : "bg-blue"
+            dealership?.subscription_status === 'active' ? "bg-emerald-400" : "bg-blue"
           )} />
-          <span className="font-mono text-[10px] text-pewter uppercase tracking-wider">
-            {dealership?.subscription_tier || 'Starter'} Plan · {dealership?.subscription_status || 'Active'}
+          <span className="font-mono text-[9px] text-pewter uppercase tracking-wider">
+            {dealership?.subscription_tier || 'Starter'} · {dealership?.subscription_status || 'Active'}
           </span>
         </div>
       </div>
 
       {/* Navigation */}
-      <nav className="flex-1 overflow-y-auto py-4">
+      <nav className="flex-1 overflow-y-auto py-3">
         {navSections.map((section) => (
-          <div key={section.label} className="mb-6">
-            <h3 className="px-6 mb-2 font-mono text-[10px] text-muted uppercase tracking-[0.16em]">
+          <div key={section.label} className="mb-5">
+            <h3 className="px-5 mb-1.5 font-mono text-[9px] text-pewter/50 uppercase tracking-[0.2em]">
               {section.label}
             </h3>
-            <div className="space-y-1 px-2">
+            <div className="space-y-0.5 px-2">
               {section.items.map((item) => {
                 const isActive = item.href === '/stock' 
                   ? pathname === '/stock'
@@ -191,20 +191,23 @@ export default function Sidebar() {
                     key={item.href}
                     href={item.href}
                     className={cn(
-                      "flex items-center justify-between px-4 py-2.5 rounded-[2px] transition-colors group",
+                      "flex items-center justify-between px-3 py-2 rounded-[2px] transition-all group font-inter text-[13px]",
                       isActive 
-                        ? "bg-blue/5 text-cream border-l-2 border-blue font-medium" 
-                        : "text-silver hover:bg-asphalt hover:text-cream"
+                        ? "bg-carbon text-cream border-l-2 border-blue font-medium shadow-sm" 
+                        : "text-silver/80 hover:bg-carbon/60 hover:text-cream"
                     )}
                   >
-                    <div className="flex items-center gap-3">
-                      <Icon size={16} className={cn(isActive ? "text-blue" : "text-pewter group-hover:text-silver")} />
-                      <span className="font-inter text-[13px]">{item.label}</span>
+                    <div className="flex items-center gap-2.5">
+                      <Icon size={15} className={cn(isActive ? "text-blue" : "text-pewter group-hover:text-silver")} />
+                      <span>{item.label}</span>
                     </div>
                     {badgeCount !== undefined && badgeCount > 0 && (
-                      <Badge variant={isActive ? "blue" : "outline"} className="h-4 px-1.5 font-mono text-[9px]">
+                      <span className={cn(
+                        "font-mono text-[9px] px-1.5 py-0.2 rounded-[2px] min-w-[16px] text-center",
+                        isActive ? "bg-blue/15 text-blue" : "bg-carbon border border-steel/60 text-pewter"
+                      )}>
                         {badgeCount}
-                      </Badge>
+                      </span>
                     )}
                   </Link>
                 );
@@ -215,26 +218,26 @@ export default function Sidebar() {
       </nav>
 
       {/* User Panel */}
-      <div className="p-4 border-t border-steel bg-carbon flex items-center justify-between">
-        <div className="flex items-center gap-3 overflow-hidden">
-          <div className="w-8 h-8 rounded-full bg-steel flex items-center justify-center text-blue font-mono text-[11px]">
-            {user?.full_name ? getInitials(user.full_name) : <User size={14} />}
+      <div className="p-3.5 border-t border-steel/80 bg-carbon/50 flex items-center justify-between">
+        <div className="flex items-center gap-2.5 overflow-hidden">
+          <div className="w-7 h-7 rounded-full bg-asphalt border border-steel flex items-center justify-center text-blue font-inter font-semibold text-[10px]">
+            {user?.full_name ? getInitials(user.full_name) : <User size={13} />}
           </div>
           <div className="overflow-hidden">
-            <p className="font-inter font-medium text-[13px] text-cream truncate">
+            <p className="font-inter font-medium text-[12px] text-cream truncate">
               {user?.full_name || 'Dealer User'}
             </p>
-            <p className="font-mono text-[10px] text-pewter uppercase tracking-wider truncate">
+            <p className="font-mono text-[9px] text-pewter uppercase tracking-wider truncate">
               {user?.role || 'Admin'}
             </p>
           </div>
         </div>
         <button 
           onClick={handleSignOut}
-          className="text-pewter hover:text-negative transition-colors"
+          className="p-1.5 text-pewter hover:text-rose-400 transition-colors rounded-[2px]"
           title="Sign out"
         >
-          <LogOut size={16} />
+          <LogOut size={14} />
         </button>
       </div>
     </aside>

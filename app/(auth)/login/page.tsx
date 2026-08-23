@@ -7,11 +7,10 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { useForm } from 'react-hook-form'
 import { z } from 'zod'
 import { loginSchema } from '@/lib/validations'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
 import { toast } from 'sonner'
 import Link from 'next/link'
-import { Eye, EyeOff } from 'lucide-react'
+import Image from 'next/image'
+import { Eye, EyeOff, Lock, Mail, ArrowRight } from 'lucide-react'
 
 type LoginFormData = z.infer<typeof loginSchema>
 
@@ -49,69 +48,74 @@ function LoginForm() {
   }
 
   return (
-    <div className="w-full max-w-[400px] space-y-8">
-      <div>
-        <div className="md:hidden flex items-center gap-2 mb-8">
-          <span className="font-syne font-bold text-2xl text-cream">Forecour</span>
-          <span className="font-syne font-bold text-2xl text-blue">IQ</span>
-        </div>
-        <h2 className="font-syne font-bold text-2xl text-cream">Sign in</h2>
-        <p className="font-inter text-sm text-silver mt-1">ForecourIQ DMS</p>
+    <div className="w-full max-w-[380px] space-y-7">
+      <div className="space-y-1.5">
+        <h2 className="font-syne font-bold text-2xl text-[#1C1F26] tracking-tight">Welcome back</h2>
+        <p className="font-inter text-[13px] text-[#5C6478]">Sign in to your ForecourIQ dealership account</p>
       </div>
 
-      <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
-        <div className="space-y-2">
-          <label className="font-inter text-[13px] text-silver">Email Address</label>
-          <Input
-            {...register('email')}
-            type="email"
-            placeholder="name@dealership.co.uk"
-            className="bg-carbon border-steel focus:border-blue text-cream"
-          />
-          {errors.email && <p className="text-negative text-xs mt-1">{errors.email.message}</p>}
+      <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+        <div className="space-y-1.5">
+          <label className="block font-inter text-[12px] font-medium text-[#353D4C]">
+            Email address
+          </label>
+          <div className="relative">
+            <input
+              {...register('email')}
+              type="email"
+              placeholder="name@dealership.co.uk"
+              className="w-full bg-white border border-[#D5D1C8] h-10.5 px-3.5 rounded-[2px] font-inter text-[13px] text-[#1C1F26] placeholder:text-[#9DA8B7] focus:outline-none focus:border-[#0EA5E9] focus:ring-1 focus:ring-[#0EA5E9] transition-all"
+            />
+          </div>
+          {errors.email && <p className="text-rose-600 text-[11px] font-inter mt-1">{errors.email.message}</p>}
         </div>
 
-        <div className="space-y-2">
+        <div className="space-y-1.5">
           <div className="flex justify-between items-center">
-            <label className="font-inter text-[13px] text-silver">Password</label>
-            <Link href="/reset-password" id="forgot-password" className="text-pewter hover:text-cream text-xs transition-colors">Forgot password?</Link>
+            <label className="block font-inter text-[12px] font-medium text-[#353D4C]">
+              Password
+            </label>
+            <Link 
+              href="/reset-password" 
+              className="text-[#0EA5E9] hover:text-[#0284C7] font-inter text-[12px] transition-colors font-medium"
+            >
+              Forgot password?
+            </Link>
           </div>
           <div className="relative">
-            <Input
+            <input
               {...register('password')}
               type={showPassword ? 'text' : 'password'}
-              className="bg-carbon border-steel focus:border-blue text-cream pr-10"
+              placeholder="••••••••"
+              className="w-full bg-white border border-[#D5D1C8] h-10.5 pl-3.5 pr-10 rounded-[2px] font-inter text-[13px] text-[#1C1F26] placeholder:text-[#9DA8B7] focus:outline-none focus:border-[#0EA5E9] focus:ring-1 focus:ring-[#0EA5E9] transition-all"
             />
             <button
               type="button"
               onClick={() => setShowPassword(!showPassword)}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-pewter hover:text-silver"
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-[#9DA8B7] hover:text-[#5C6478] p-1"
             >
-              {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+              {showPassword ? <EyeOff size={15} /> : <Eye size={15} />}
             </button>
           </div>
-          {errors.password && <p className="text-negative text-xs mt-1">{errors.password.message}</p>}
+          {errors.password && <p className="text-rose-600 text-[11px] font-inter mt-1">{errors.password.message}</p>}
         </div>
 
-        <Button
+        <button
           type="submit"
-          variant="outline"
-          className="w-full h-12 border-blue text-blue hover:bg-blue hover:text-void font-syne font-bold text-[13px] tracking-[0.08em]"
           disabled={isLoading}
+          className="w-full h-11 bg-[#0EA5E9] hover:bg-[#0284C7] active:bg-[#0369A1] text-white rounded-[2px] font-inter font-medium text-[13px] tracking-wide transition-colors flex items-center justify-center gap-2 shadow-sm disabled:opacity-50 mt-2 cursor-pointer"
         >
-          {isLoading ? 'SIGNING IN...' : 'SIGN IN'}
-        </Button>
+          {isLoading ? 'Signing in...' : 'Sign in to DMS'}
+          {!isLoading && <ArrowRight size={14} />}
+        </button>
       </form>
 
-      <div className="text-center">
-        <p className="font-inter text-sm text-pewter">
-          {'Don\'t have an account? '}
-          <a
-            href={`${process.env.NEXT_PUBLIC_MARKETING_URL}/signup`}
-            className="text-blue hover:underline"
-          >
-            Start Free Trial
-          </a>
+      <div className="pt-2 text-center border-t border-[#E2DFC9]">
+        <p className="font-inter text-[12px] text-[#5C6478]">
+          New to ForecourIQ?{' '}
+          <Link href="/signup" className="text-[#0EA5E9] hover:underline font-medium">
+            Start 14-day free trial
+          </Link>
         </p>
       </div>
     </div>
@@ -122,29 +126,38 @@ export default function LoginPage() {
   return (
     <div className="min-h-screen bg-void flex flex-col md:flex-row overflow-hidden">
 
-      {/* Left Panel - Brand */}
-      <div className="hidden md:flex md:w-1/2 bg-carbon border-r border-steel flex-col justify-between p-12">
-        <div className="flex items-center gap-2">
-          <span className="font-syne font-bold text-[28px] text-cream tracking-tight">Forecour</span>
-          <span className="font-syne font-bold text-[28px] text-blue tracking-tight">IQ</span>
+      {/* Left 50% — Dark Cinematic Automotive Image */}
+      <div className="relative md:w-1/2 h-56 md:h-auto min-h-[220px] md:min-h-screen flex flex-col justify-between p-6 md:p-12 overflow-hidden bg-[#07080B]">
+        {/* Aston Martin Hero Asset */}
+        <div 
+          className="absolute inset-0 bg-cover bg-center opacity-85 scale-100"
+          style={{ backgroundImage: 'url("/images/supercar-hero.png")' }}
+        />
+
+        {/* Restrained Cinematic Dark Vignette Overlay */}
+        <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/40 to-black/30 pointer-events-none" />
+        <div className="absolute inset-0 bg-gradient-to-r from-black/60 via-transparent to-transparent pointer-events-none" />
+
+        {/* Top-Left Logo */}
+        <div className="relative z-10 flex items-center gap-1">
+          <span className="font-syne font-bold text-2xl text-[#EDE8DC] tracking-tight">Forecour</span>
+          <span className="font-syne font-bold text-2xl text-[#0EA5E9] tracking-tight">IQ</span>
         </div>
 
-        <div className="max-w-md">
-          <h1 className="font-syne italic font-semibold text-5xl text-cream leading-[1.1] tracking-tight">
-            The platform for dealers who compete on <span className="text-blue">intelligence.</span>
-          </h1>
-        </div>
-
-        <div className="space-y-2">
-          <p className="font-mono text-[11px] text-pewter uppercase tracking-widest">
-            Production-grade DMS for UK independent motor dealers.
+        {/* Bottom Tagline */}
+        <div className="relative z-10 max-w-sm hidden md:block">
+          <p className="font-syne font-semibold text-2xl text-[#EDE8DC] tracking-tight leading-snug">
+            Intelligence for the modern forecourt.
+          </p>
+          <p className="font-inter text-[12px] text-[#9DA8B7] mt-1.5 leading-relaxed">
+            Automotive stockbook, deal governance, and buying intelligence designed for UK independent dealerships.
           </p>
         </div>
       </div>
 
-      {/* Right Panel - Form wrapped in Suspense */}
-      <div className="flex-1 flex items-center justify-center p-8 bg-void">
-        <Suspense fallback={<div className="text-silver font-mono text-xs uppercase tracking-widest">Loading...</div>}>
+      {/* Right 50% — Light Warm Neutral Authentication Surface */}
+      <div className="flex-1 flex items-center justify-center p-6 md:p-12 bg-[#F3F2EE] min-h-[calc(100vh-220px)] md:min-h-screen">
+        <Suspense fallback={<div className="text-[#5C6478] font-inter text-xs">Loading sign in...</div>}>
           <LoginForm />
         </Suspense>
       </div>

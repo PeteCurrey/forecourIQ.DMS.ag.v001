@@ -1,93 +1,64 @@
 'use client'
 
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts'
-import { differenceInDays } from 'date-fns'
 
-type Vehicle = {
-  id: string
-  created_at: string
-  make: string
-  status: string
+interface PipelineStage {
+  name: string
+  count: number
+  fill?: string
 }
 
-export default function DashboardCharts({ vehicles }: { vehicles: Vehicle[] }) {
-  const now = new Date()
+export default function LeadPipelineChart({ pipelineData }: { pipelineData: PipelineStage[] }) {
+  const totalLeads = pipelineData.reduce((sum, item) => sum + item.count, 0)
 
-  // Stock Aging Data
-  const agingBuckets = [
-    { name: '0-14d', count: 0, fill: '#3DB87A' },
-    { name: '15-29d', count: 0, fill: '#5DB87A' },
-    { name: '30-44d', count: 0, fill: '#D4922A' },
-    { name: '45-59d', count: 0, fill: '#E07030' },
-    { name: '60d+', count: 0, fill: '#C94040' },
-  ]
+  const stageColors: Record<string, string> = {
+    'New': '#0EA5E9',
+    'Contacted': '#38BDF8',
+    'Test Drive': '#818CF8',
+    'Offer': '#A78BFA',
+    'Won': '#3DB87A',
+    'Lost': '#C94040',
+  }
 
-  vehicles.forEach(v => {
-    const days = differenceInDays(now, new Date(v.created_at))
-    if (days < 15) agingBuckets[0].count++
-    else if (days < 30) agingBuckets[1].count++
-    else if (days < 45) agingBuckets[2].count++
-    else if (days < 60) agingBuckets[3].count++
-    else agingBuckets[4].count++
-  })
-
-  // Static lead pipeline data (would come from DB in production)
-  const pipelineData = [
-    { name: 'New', count: 8, fill: '#0EA5E9' },
-    { name: 'Contacted', count: 5, fill: '#0EA5E9' },
-    { name: 'Test Drive', count: 3, fill: '#0EA5E9' },
-    { name: 'Offer', count: 2, fill: '#0EA5E9' },
-    { name: 'Won', count: 4, fill: '#3DB87A' },
-    { name: 'Lost', count: 2, fill: '#C94040' },
-  ]
+  const chartData = pipelineData.map(d => ({
+    ...d,
+    fill: stageColors[d.name] || '#0EA5E9',
+  }))
 
   const tooltipStyle = {
     contentStyle: {
       backgroundColor: '#0D0F14',
       border: '1px solid #1C2029',
       borderRadius: '2px',
-      fontFamily: 'var(--font-mono)',
+      fontFamily: 'var(--font-inter)',
       fontSize: '11px',
-      color: '#9DA8B7',
+      color: '#EDE8DC',
     },
-    cursor: { fill: 'rgba(255,255,255,0.02)' }
+    cursor: { fill: 'rgba(255,255,255,0.03)' }
+  }
+
+  if (totalLeads === 0) {
+    return (
+      <div className="h-44 flex flex-col items-center justify-center text-center p-4">
+        <p className="font-inter text-xs text-pewter">No lead pipeline activity recorded yet.</p>
+      </div>
+    )
   }
 
   return (
-    <div className="grid grid-cols-1 xl:grid-cols-5 gap-6">
-      {/* Stock Aging */}
-      <div className="xl:col-span-3 bg-carbon border border-steel rounded-[2px] p-6">
-        <p className="font-mono text-[11px] text-pewter uppercase tracking-widest mb-6">Stock Aging</p>
-        <ResponsiveContainer width="100%" height={200}>
-          <BarChart data={agingBuckets} barSize={32}>
-            <XAxis dataKey="name" tick={{ fontFamily: 'var(--font-mono)', fontSize: 11, fill: '#5C6478' }} axisLine={false} tickLine={false} />
-            <YAxis tick={{ fontFamily: 'var(--font-mono)', fontSize: 11, fill: '#5C6478' }} axisLine={false} tickLine={false} allowDecimals={false} />
-            <Tooltip {...tooltipStyle} formatter={(val: number) => [val, 'Vehicles']} />
-            <Bar dataKey="count" radius={[1, 1, 0, 0]}>
-              {agingBuckets.map((entry, index) => (
-                <Cell key={`cell-${index}`} fill={entry.fill} />
-              ))}
-            </Bar>
-          </BarChart>
-        </ResponsiveContainer>
-      </div>
-
-      {/* Lead Pipeline */}
-      <div className="xl:col-span-2 bg-carbon border border-steel rounded-[2px] p-6">
-        <p className="font-mono text-[11px] text-pewter uppercase tracking-widest mb-6">Lead Pipeline</p>
-        <ResponsiveContainer width="100%" height={200}>
-          <BarChart data={pipelineData} layout="vertical" barSize={16}>
-            <XAxis type="number" tick={{ fontFamily: 'var(--font-mono)', fontSize: 10, fill: '#5C6478' }} axisLine={false} tickLine={false} allowDecimals={false} />
-            <YAxis dataKey="name" type="category" tick={{ fontFamily: 'var(--font-mono)', fontSize: 10, fill: '#5C6478' }} axisLine={false} tickLine={false} width={70} />
-            <Tooltip {...tooltipStyle} formatter={(val: number) => [val, 'Leads']} />
-            <Bar dataKey="count" radius={[0, 1, 1, 0]}>
-              {pipelineData.map((entry, index) => (
-                <Cell key={`cell-${index}`} fill={entry.fill} />
-              ))}
-            </Bar>
-          </BarChart>
-        </ResponsiveContainer>
-      </div>
+    <div className="w-full h-44">
+      <ResponsiveContainer width="100%" height="100%">
+        <BarChart data={chartData} layout="vertical" barSize={12} margin={{ top: 5, right: 10, left: -10, bottom: 5 }}>
+          <XAxis type="number" tick={{ fontFamily: 'var(--font-mono)', fontSize: 10, fill: '#5C6478' }} axisLine={false} tickLine={false} allowDecimals={false} />
+          <YAxis dataKey="name" type="category" tick={{ fontFamily: 'var(--font-inter)', fontSize: 11, fill: '#9DA8B7' }} axisLine={false} tickLine={false} width={80} />
+          <Tooltip {...tooltipStyle} formatter={(val: number) => [val, 'Leads']} />
+          <Bar dataKey="count" radius={[0, 1, 1, 0]}>
+            {chartData.map((entry, index) => (
+              <Cell key={`cell-${index}`} fill={entry.fill} />
+            ))}
+          </Bar>
+        </BarChart>
+      </ResponsiveContainer>
     </div>
   )
 }
