@@ -212,4 +212,76 @@ export class PlatformService {
 
     return { success: true, message: 'Dealership pilot successfully paused' };
   }
+
+  /**
+   * Get Pilot Health Matrix with live risk calculation across all pilot dealerships.
+   */
+  static async getPilotHealthList(): Promise<any[]> {
+    const supabase = await createClient();
+
+    const { data: dealerships } = await supabase
+      .from('dealerships')
+      .select('id, name, city, lifecycle_status, pilot_owner, pilot_risk_status, pilot_objectives, pilot_started_at, created_at')
+      .in('lifecycle_status', ['pilot', 'onboarding', 'active']);
+
+    if (!dealerships || dealerships.length === 0) return [];
+
+    const results = await Promise.all(
+      dealerships.map(async (d) => {
+        const [
+          { count: activeUsers },
+          { count: stockCount },
+          { count: leadsCount },
+          { count: dealsCount },
+          { count: openCases },
+          { count: failedJobs },
+        ] = await Promise.all([
+          supabase.from('profiles').select('id', { count: 'exact', head: true }).eq('dealership_id', d.id),
+          supabase.from('vehicles').select('id', { count: 'exact', head: true }).eq('dealership_id', d.id).in('status', ['available', 'advertised', 'ready_for_sale', 'preparation']),
+          supabase.from('leads').select('id', { count: 'exact', head: true }).eq('dealership_id', d.id),
+          supabase.from('deals').select('id', { count: 'exact', head: true }).eq('dealership_id', d.id),
+          supabase.from('support_cases').select('id', { count: 'exact', head: true }).eq('dealership_id', d.id).in('status', ['open', 'in_progress', 'waiting_on_forecouriq']),
+          supabase.from('data_import_jobs').select('id', { count: 'exact', head: true }).eq('dealership_id', d.id).eq('status', 'failed'),
+        ]);
+
+        // Evaluate risk status dynamically
+        let risk: 'healthy' | 'attention' | 'at_risk' | 'blocked' = 'healthy';
+        const blockerReasons: string[] = [];
+
+        if ((failedJobs || 0) > 3) {
+          risk = 'at_risk';
+          blockerReasons.push('Multiple data import failures');
+        }
+        if ((openCases || 0) > 2) {
+          risk = 'attention';
+          blockerReasons.push('Multiple open support cases');
+        }
+        if ((stockCount || 0) === 0 && d.lifecycle_status === 'pilot') {
+          risk = 'attention';
+          blockerReasons.push('Zero vehicles in stockbook');
+        }
+
+        return {
+          dealershipId: d.id,
+          name: d.name,
+          city: d.city,
+          pilotStage: d.lifecycle_status,
+          pilotOwner: d.pilot_owner || 'Unassigned Operator',
+          riskStatus: d.pilot_risk_status || risk,
+          activeUsersCount: activeUsers || 1,
+          stockCount: stockCount || 0,
+          leadsCount: leadsCount || 0,
+          dealsCount: dealsCount || 0,
+          openCasesCount: openCases || 0,
+          failedJobsCount: failedJobs || 0,
+          integrationHealth: (failedJobs || 0) > 0 ? 'degraded' : 'operational',
+          lastActivityAt: new Date().toISOString(),
+          objectives: (d.pilot_objectives as any) || ['Stock Migration', 'Lead Workflow', 'Deal Completion'],
+          blockerReasons: blockerReasons.length > 0 ? blockerReasons : undefined,
+        };
+      })
+    );
+
+    return results;
+  }
 }

@@ -38,7 +38,8 @@ export async function GET() {
     {
       status: allHealthy ? 'healthy' : 'degraded',
       timestamp: new Date().toISOString(),
-      version: process.env.NEXT_PUBLIC_APP_VERSION || '9.0.0',
+      version: process.env.NEXT_PUBLIC_APP_VERSION || '1.0.0-rc.1',
+      releaseStage: 'release_candidate',
       latencyMs: totalMs,
       checks,
     },

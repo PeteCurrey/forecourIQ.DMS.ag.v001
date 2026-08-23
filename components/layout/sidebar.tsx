@@ -36,6 +36,7 @@ import { cn, getInitials } from '@/lib/utils';
 import { createClient } from '@/lib/supabase/client';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
+import FeedbackModal from '@/components/feedback/feedback-modal';
 
 interface DealershipProfile {
   name: string;
@@ -118,6 +119,7 @@ export default function Sidebar() {
   const supabase = createClient();
   const [user, setUser] = useState<UserInfo | null>(null);
   const [dealership, setDealership] = useState<DealershipProfile | null>(null);
+  const [showFeedbackModal, setShowFeedbackModal] = useState(false);
   const [counts, setCounts] = useState<{ 
     stock?: number; 
     prep?: number; 
@@ -321,14 +323,29 @@ export default function Sidebar() {
             </div>
           </div>
         </div>
-        <button
-          onClick={handleLogout}
-          className="p-1.5 text-pewter hover:text-negative hover:bg-asphalt rounded transition-colors"
-          title="Sign out"
-        >
-          <LogOut className="w-4 h-4" />
-        </button>
+        <div className="flex items-center gap-1">
+          <button
+            onClick={() => setShowFeedbackModal(true)}
+            className="p-1.5 text-pewter hover:text-cream hover:bg-asphalt rounded transition-colors"
+            title="Submit Feedback / Report Issue"
+          >
+            <MessageSquare className="w-4 h-4" />
+          </button>
+          <button
+            onClick={handleLogout}
+            className="p-1.5 text-pewter hover:text-negative hover:bg-asphalt rounded transition-colors"
+            title="Sign out"
+          >
+            <LogOut className="w-4 h-4" />
+          </button>
+        </div>
       </div>
+
+      <FeedbackModal
+        isOpen={showFeedbackModal}
+        onClose={() => setShowFeedbackModal(false)}
+        userRole={user?.role}
+      />
     </aside>
   );
 }

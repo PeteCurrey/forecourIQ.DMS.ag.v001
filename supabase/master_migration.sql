@@ -3236,3 +3236,73 @@ CREATE POLICY "stock_transfer_events_tenant_isolation" ON public.stock_transfer_
 
 CREATE POLICY "vehicle_location_history_tenant_isolation" ON public.vehicle_location_history
   FOR ALL USING (dealership_id = auth_dealership_id());
+
+-- ============================================================================
+-- Migration 013: Phase 10 — Product Analytics, Dealer Feedback & Release Candidate Pilot Controls
+-- ============================================================================
+
+CREATE TABLE IF NOT EXISTS public.product_analytics_events (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  dealership_id UUID NOT NULL REFERENCES public.dealerships(id) ON DELETE CASCADE,
+  user_id UUID REFERENCES auth.users(id) ON DELETE SET NULL,
+  event_name TEXT NOT NULL,
+  event_category TEXT NOT NULL,
+  properties JSONB NOT NULL DEFAULT '{}'::jsonb,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_analytics_dealership_event ON public.product_analytics_events(dealership_id, event_name);
+CREATE INDEX IF NOT EXISTS idx_analytics_created_at ON public.product_analytics_events(created_at);
+CREATE INDEX IF NOT EXISTS idx_analytics_category ON public.product_analytics_events(event_category);
+
+CREATE TABLE IF NOT EXISTS public.dealership_activation_milestones (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  dealership_id UUID NOT NULL REFERENCES public.dealerships(id) ON DELETE CASCADE,
+  milestone TEXT NOT NULL,
+  achieved_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  elapsed_seconds_from_signup BIGINT,
+  metadata JSONB DEFAULT '{}'::jsonb,
+  CONSTRAINT uq_dealership_milestone UNIQUE (dealership_id, milestone)
+);
+
+CREATE INDEX IF NOT EXISTS idx_milestones_dealership ON public.dealership_activation_milestones(dealership_id);
+
+CREATE TABLE IF NOT EXISTS public.dealer_feedback (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  dealership_id UUID NOT NULL REFERENCES public.dealerships(id) ON DELETE CASCADE,
+  user_id UUID REFERENCES auth.users(id) ON DELETE SET NULL,
+  category TEXT NOT NULL CHECK (category IN ('bug', 'confusing', 'feature_request', 'performance', 'other')),
+  title TEXT NOT NULL,
+  description TEXT NOT NULL,
+  route TEXT,
+  app_version TEXT NOT NULL DEFAULT '1.0.0-rc.1',
+  user_role TEXT,
+  browser_info TEXT,
+  screenshot_url TEXT,
+  status TEXT NOT NULL DEFAULT 'new' CHECK (status IN ('new', 'reviewed', 'planned', 'resolved', 'closed')),
+  release_tag TEXT,
+  operator_notes TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_feedback_dealership ON public.dealer_feedback(dealership_id);
+CREATE INDEX IF NOT EXISTS idx_feedback_status ON public.dealer_feedback(status);
+CREATE INDEX IF NOT EXISTS idx_feedback_created_at ON public.dealer_feedback(created_at);
+
+ALTER TABLE public.dealerships ADD COLUMN IF NOT EXISTS pilot_risk_status TEXT NOT NULL DEFAULT 'healthy' CHECK (pilot_risk_status IN ('healthy', 'attention', 'at_risk', 'blocked'));
+ALTER TABLE public.dealerships ADD COLUMN IF NOT EXISTS pilot_objectives JSONB DEFAULT '[]'::jsonb;
+ALTER TABLE public.dealerships ADD COLUMN IF NOT EXISTS pilot_success_criteria JSONB DEFAULT '[]'::jsonb;
+
+ALTER TABLE public.product_analytics_events ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.dealership_activation_milestones ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.dealer_feedback ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "product_analytics_events_tenant_isolation" ON public.product_analytics_events
+  FOR ALL USING (dealership_id = auth_dealership_id());
+
+CREATE POLICY "dealership_activation_milestones_tenant_isolation" ON public.dealership_activation_milestones
+  FOR ALL USING (dealership_id = auth_dealership_id());
+
+CREATE POLICY "dealer_feedback_tenant_isolation" ON public.dealer_feedback
+  FOR ALL USING (dealership_id = auth_dealership_id());

@@ -274,6 +274,29 @@ export interface DealershipPlatformSummary {
   created_at: string;
 }
 
+export type PilotRiskStatus = 'healthy' | 'attention' | 'at_risk' | 'blocked';
+export type PilotProfileType = 'small_independent' | 'mid_independent' | 'prestige_performance' | 'multisite_group';
+
+export interface PilotHealthRecord {
+  dealershipId: string;
+  name: string;
+  city?: string;
+  profileType?: PilotProfileType;
+  pilotStage: 'not_started' | 'onboarding' | 'active' | 'paused' | 'completed' | 'failed';
+  pilotOwner: string;
+  riskStatus: PilotRiskStatus;
+  activeUsersCount: number;
+  stockCount: number;
+  leadsCount: number;
+  dealsCount: number;
+  openCasesCount: number;
+  failedJobsCount: number;
+  integrationHealth: 'operational' | 'degraded' | 'action_required';
+  lastActivityAt: string;
+  objectives: string[];
+  blockerReasons?: string[];
+}
+
 export interface PlatformGlobalMetrics {
   totalDealerships: number;
   activePilots: number;
