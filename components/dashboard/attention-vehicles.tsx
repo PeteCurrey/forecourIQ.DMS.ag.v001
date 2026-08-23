@@ -3,7 +3,7 @@
 import { AttentionVehicle } from '@/lib/services/dashboard/dashboard-service';
 import { formatCurrency } from '@/lib/format';
 import { cn } from '@/lib/utils';
-import { Car, ChevronRight, AlertTriangle, Clock, Tag, Wrench, ArrowLeftRight } from 'lucide-react';
+import { Car, ChevronRight, Tag, Wrench, Clock, ShieldAlert, Sparkles } from 'lucide-react';
 import Link from 'next/link';
 
 interface AttentionVehiclesProps {
@@ -14,104 +14,143 @@ interface AttentionVehiclesProps {
 export default function AttentionVehicles({ vehicles, canViewMargin }: AttentionVehiclesProps) {
   if (!vehicles || vehicles.length === 0) {
     return (
-      <div className="bg-carbon border border-steel rounded-lg p-6 text-center text-xs text-pewter">
+      <div className="bg-carbon border border-steel rounded-xl p-8 text-center text-xs text-pewter">
         No vehicles currently require urgent operational attention.
       </div>
     );
   }
 
-  const getReasonBadge = (type: string) => {
+  const getReasonConfig = (type: string) => {
     switch (type) {
       case 'prep':
-        return <span className="text-[10px] uppercase font-mono font-semibold text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200">PREPARATION</span>;
+        return {
+          icon: Wrench,
+          label: 'PREPARATION',
+          badge: 'bg-amber-500/10 border-amber-500/30 text-amber-600 dark:text-amber-400',
+          accent: 'border-l-amber-500',
+        };
       case 'ageing':
-        return <span className="text-[10px] uppercase font-mono font-semibold text-red-600 bg-red-50 px-1.5 py-0.5 rounded border border-red-200">AGEING</span>;
+        return {
+          icon: Clock,
+          label: 'AGEING EXPOSURE',
+          badge: 'bg-rose-500/10 border-rose-500/30 text-rose-600 dark:text-rose-400',
+          accent: 'border-l-rose-500',
+        };
       case 'pricing':
-        return <span className="text-[10px] uppercase font-mono font-semibold text-blue bg-blue-tint px-1.5 py-0.5 rounded border border-blue/20">PRICING</span>;
-      case 'transfer':
-        return <span className="text-[10px] uppercase font-mono font-semibold text-purple-600 bg-purple-50 px-1.5 py-0.5 rounded border border-purple-200">TRANSFER</span>;
+        return {
+          icon: Tag,
+          label: 'PRICING REVIEW',
+          badge: 'bg-blue/10 border-blue/30 text-blue',
+          accent: 'border-l-blue',
+        };
       default:
-        return <span className="text-[10px] uppercase font-mono font-semibold text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200">ATTENTION</span>;
+        return {
+          icon: ShieldAlert,
+          label: 'ATTENTION REQUIRED',
+          badge: 'bg-amber-500/10 border-amber-500/30 text-amber-600 dark:text-amber-400',
+          accent: 'border-l-amber-500',
+        };
     }
   };
 
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-      {vehicles.map((v) => (
-        <div
-          key={v.id}
-          className="bg-carbon border border-steel rounded-lg overflow-hidden flex flex-col justify-between group hover:border-cream/40 transition-colors"
-        >
-          {/* Media Container with 1.025x hover zoom */}
-          <div className="w-full h-36 bg-asphalt overflow-hidden relative flex items-center justify-center">
-            {v.imageUrl ? (
-              <img
-                src={v.imageUrl}
-                alt={`${v.make} ${v.model}`}
-                className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
-                loading="lazy"
-              />
-            ) : (
-              <div className="flex flex-col items-center justify-center text-pewter">
-                <Car className="w-8 h-8 mb-1" />
-                <span className="text-[10px]">No Photo</span>
-              </div>
-            )}
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+      {vehicles.map((v) => {
+        const config = getReasonConfig(v.reasonType);
+        const Icon = config.icon;
+        const profitMargin = canViewMargin && v.askingPrice && v.investedCost ? v.askingPrice - v.investedCost : null;
 
-            {/* Top Plate Badge */}
-            <div className="absolute top-2 left-2">
-              <span className="font-mono text-[10px] font-bold bg-carbon/90 backdrop-blur-xs border border-steel px-1.5 py-0.5 rounded text-cream shadow-xs">
-                {v.registration}
-              </span>
-            </div>
-
-            {/* Top Right Status */}
-            <div className="absolute top-2 right-2">
-              {getReasonBadge(v.reasonType)}
-            </div>
-          </div>
-
-          {/* Vehicle Body Content */}
-          <div className="p-3.5 flex-1 flex flex-col justify-between space-y-3">
-            <div>
-              <div className="font-sans font-semibold text-xs text-cream truncate">
-                {v.make} {v.model}
-              </div>
-              {v.variant && (
-                <div className="text-[11px] text-pewter truncate mt-0.5">{v.variant}</div>
+        return (
+          <div
+            key={v.id}
+            className="bg-carbon border border-steel rounded-xl overflow-hidden flex flex-col justify-between group hover:border-cream/50 hover:shadow-xl hover:shadow-black/10 transition-all duration-300 relative"
+          >
+            {/* Vehicle Photography Media Container with Hover Zoom */}
+            <div className="w-full h-44 bg-asphalt overflow-hidden relative flex items-center justify-center">
+              {v.imageUrl ? (
+                <img
+                  src={v.imageUrl}
+                  alt={`${v.make} ${v.model}`}
+                  className="w-full h-full object-cover transition-transform duration-500 ease-out group-hover:scale-108"
+                  loading="lazy"
+                />
+              ) : (
+                <div className="flex flex-col items-center justify-center text-pewter">
+                  <Car className="w-10 h-10 mb-1 opacity-50" />
+                  <span className="text-[10px]">Photo Pending</span>
+                </div>
               )}
-              <div className="text-xs text-cream font-medium mt-1.5 flex items-center gap-1.5">
-                <span className="text-pewter text-[11px] leading-tight">{v.reason}</span>
+
+              {/* Ambient Dark Gradient Scrim */}
+              <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent pointer-events-none" />
+
+              {/* Top Left: Authentic UK Style Plate Badge */}
+              <div className="absolute top-3 left-3 z-10">
+                <span className="font-mono text-[11px] font-black tracking-widest bg-[#F5B400] text-black border border-black/40 px-2 py-0.5 rounded-[3px] shadow-md uppercase">
+                  {v.registration}
+                </span>
+              </div>
+
+              {/* Top Right: Status Badge */}
+              <div className="absolute top-3 right-3 z-10">
+                <span className={cn('text-[9px] uppercase font-mono font-bold px-2 py-0.5 rounded-full border backdrop-blur-md bg-black/60 shadow-md flex items-center gap-1', config.badge)}>
+                  <Icon className="w-3 h-3" />
+                  <span>{config.label}</span>
+                </span>
+              </div>
+
+              {/* Bottom Scrim Info: Make/Model & Variant */}
+              <div className="absolute bottom-2.5 left-3 right-3 z-10 text-white">
+                <div className="font-sans font-bold text-sm leading-tight drop-shadow-sm truncate">
+                  {v.make} {v.model}
+                </div>
+                <div className="text-[11px] text-white/80 truncate font-medium">
+                  {v.variant || `${v.daysInStock} days on forecourt`}
+                </div>
               </div>
             </div>
 
-            {/* Financial Ledger & Link */}
-            <div className="pt-2 border-t border-steel flex items-center justify-between">
-              <div>
-                {v.askingPrice && (
-                  <div className="text-xs font-bold text-cream tabular-nums">
-                    {formatCurrency(v.askingPrice)} <span className="text-[10px] text-pewter font-normal">retail</span>
-                  </div>
-                )}
-                {canViewMargin && v.investedCost && (
-                  <div className="text-[10px] text-pewter tabular-nums">
-                    Inv: {formatCurrency(v.investedCost)}
-                  </div>
-                )}
+            {/* Content & Commercial Details */}
+            <div className="p-4 flex-1 flex flex-col justify-between space-y-3">
+              {/* Reason Explanation */}
+              <div className="bg-asphalt/50 border border-steel/60 rounded-lg p-2.5">
+                <div className="flex items-start gap-2">
+                  <span className="text-[11px] text-cream font-medium leading-relaxed">
+                    {v.reason}
+                  </span>
+                </div>
               </div>
 
-              <Link
-                href={v.actionUrl}
-                className="text-xs text-cream font-medium flex items-center gap-1 hover:underline group-hover:text-blue transition-colors"
-              >
-                <span>Review</span>
-                <ChevronRight className="w-3.5 h-3.5" />
-              </Link>
+              {/* Commercial Ledger */}
+              <div className="pt-2 border-t border-steel flex items-center justify-between">
+                <div>
+                  <div className="text-sm font-bold text-cream tabular-nums">
+                    {v.askingPrice ? formatCurrency(v.askingPrice) : 'POA'}
+                    <span className="text-[10px] text-pewter font-normal ml-1">retail</span>
+                  </div>
+                  {canViewMargin && v.investedCost && (
+                    <div className="text-[11px] text-pewter tabular-nums mt-0.5 flex items-center gap-1.5">
+                      <span>Inv: {formatCurrency(v.investedCost)}</span>
+                      {profitMargin !== null && profitMargin > 0 && (
+                        <span className="text-emerald-600 font-semibold">(+{formatCurrency(profitMargin)})</span>
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                <Link
+                  href={v.actionUrl}
+                  className="px-3 py-1.5 rounded-lg bg-cream text-void dark:bg-cream dark:text-void hover:opacity-90 font-semibold text-xs transition-all flex items-center gap-1 shadow-xs group-hover:bg-blue group-hover:text-white"
+                >
+                  <span>Review</span>
+                  <ChevronRight className="w-3.5 h-3.5" />
+                </Link>
+              </div>
             </div>
+
           </div>
-
-        </div>
-      ))}
+        );
+      })}
     </div>
   );
 }
