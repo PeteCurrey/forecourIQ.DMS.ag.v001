@@ -1,53 +1,53 @@
-import { createClient } from '@/lib/supabase/server'
-import { redirect } from 'next/navigation'
-import { MarketService } from '@/lib/services/intelligence/market-service'
-import { BuyingService } from '@/lib/services/intelligence/buying-service'
-import { PricingService } from '@/lib/services/intelligence/pricing-service'
-import { StockRiskService } from '@/lib/services/intelligence/stock-risk-service'
-import CommandCentreClient from './command-centre-client'
+import { createClient } from '@/lib/supabase/server';
+import { BriefService } from '@/lib/services/iq/brief-service';
+import { RecommendationService } from '@/lib/services/iq/recommendation-service';
+import { ActionService } from '@/lib/services/iq/action-service';
+import { BuyingService } from '@/lib/services/intelligence/buying-service';
+import { PricingService } from '@/lib/services/intelligence/pricing-service';
+import CommandCentreClient from './command-centre-client';
 
 export const metadata = {
-  title: 'Commercial Command Centre | ForecourIQ DMS',
-}
+  title: 'Command Centre | ForecourIQ DMS',
+};
 
 export default async function CommandCentrePage() {
-  const supabase = await createClient()
-
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect('/login')
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return null;
 
   const { data: profile } = await supabase
     .from('profiles')
-    .select('dealership_id, dealerships(id, name, city, county)')
+    .select('dealership_id, full_name, role, dealerships(name)')
     .eq('id', user.id)
-    .single()
+    .single();
 
-  if (!profile?.dealership_id) redirect('/onboarding')
+  const dealershipId = profile?.dealership_id;
+  if (!dealershipId) return null;
 
-  const dealership = (profile.dealerships as any) || {
-    id: profile.dealership_id,
-    name: 'Your Dealership',
-    city: 'UK',
-    county: 'UK',
-  }
-
-  const [overview, buyingSignals, pricingSignals, capitalExposure, stockRiskSignals] = await Promise.all([
-    MarketService.getMarketOverview(profile.dealership_id),
-    BuyingService.getBuyingSignals(profile.dealership_id),
-    PricingService.getPricingSignals(profile.dealership_id),
-    StockRiskService.getCapitalExposureSummary(profile.dealership_id),
-    StockRiskService.getStockRiskSignals(profile.dealership_id),
-  ])
+  const [
+    todayBrief,
+    recommendations,
+    pendingActions,
+    buyingSignals,
+    pricingSignals,
+  ] = await Promise.all([
+    BriefService.getTodayBriefing(dealershipId, 'daily'),
+    RecommendationService.scanAndGenerate(dealershipId),
+    ActionService.getPendingActions(dealershipId),
+    BuyingService.getBuyingSignals(dealershipId),
+    PricingService.getPricingSignals(dealershipId),
+  ]);
 
   return (
     <CommandCentreClient
-      dealership={dealership}
-      overview={overview}
+      dealershipName={(profile?.dealerships as any)?.name || 'Hartwell Motor Group'}
+      userName={profile?.full_name || 'Dealer Principal'}
+      userRole={profile?.role || 'admin'}
+      todayBrief={todayBrief}
+      recommendations={recommendations}
+      pendingActions={pendingActions}
       buyingSignals={buyingSignals}
       pricingSignals={pricingSignals}
-      capitalExposure={capitalExposure}
-      stockRiskSignals={stockRiskSignals}
-      userId={user.id}
     />
-  )
+  );
 }

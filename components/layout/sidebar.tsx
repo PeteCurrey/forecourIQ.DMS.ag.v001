@@ -6,7 +6,7 @@ import {
   LayoutDashboard, 
   Car, 
   Wrench,
-  Users,
+  Users, 
   Inbox, 
   CheckSquare,
   Calendar,
@@ -22,7 +22,10 @@ import {
   Globe,
   ShoppingBag,
   Tag,
-  Eye
+  Eye,
+  FileText,
+  ShieldCheck,
+  Shield
 } from 'lucide-react';
 import { cn, getInitials } from '@/lib/utils';
 import { createClient } from '@/lib/supabase/client';
@@ -55,6 +58,7 @@ const navSections = [
       { label: 'Inbox', icon: Inbox, href: '/inbox', badgeKey: 'inbox' },
       { label: 'Leads', icon: Users, href: '/leads', badgeKey: 'leads' },
       { label: 'Deal Desk', icon: Handshake, href: '/deals', badgeKey: 'deals' },
+      { label: 'Approval Inbox', icon: ShieldCheck, href: '/actions/approvals', badgeKey: 'approvals' },
       { label: 'Customers', icon: User, href: '/customers' },
       { label: 'Tasks', icon: CheckSquare, href: '/tasks', badgeKey: 'tasks' },
       { label: 'Appointments', icon: Calendar, href: '/appointments' },
@@ -64,6 +68,7 @@ const navSections = [
     label: 'INTELLIGENCE',
     items: [
       { label: 'Command Centre', icon: Brain, href: '/command-centre', badgeKey: 'signals' },
+      { label: 'Daily Briefing', icon: FileText, href: '/command-centre/brief' },
       { label: 'Market Demand', icon: BarChart2, href: '/intelligence/market' },
       { label: 'Buying Intelligence', icon: ShoppingBag, href: '/intelligence/buying' },
       { label: 'Pricing Attention', icon: Tag, href: '/intelligence/pricing' },
@@ -75,6 +80,7 @@ const navSections = [
     label: 'SYSTEM',
     items: [
       { label: 'Integrations', icon: Link2, href: '/settings/integrations' },
+      { label: 'IQ Operating Policy', icon: Shield, href: '/settings/iq' },
       { label: 'Intelligence Strategy', icon: Settings, href: '/settings/intelligence' },
       { label: 'Settings', icon: Settings, href: '/settings' },
       { label: 'Billing', icon: CreditCard, href: '/settings?tab=billing' },
@@ -88,7 +94,7 @@ export default function Sidebar() {
   const supabase = createClient();
   const [user, setUser] = useState<UserInfo | null>(null);
   const [dealership, setDealership] = useState<DealershipProfile | null>(null);
-  const [counts, setCounts] = useState<{ stock?: number; prep?: number; leads?: number; deals?: number; tasks?: number; signals?: number; inbox?: number }>({});
+  const [counts, setCounts] = useState<{ stock?: number; prep?: number; leads?: number; deals?: number; tasks?: number; signals?: number; inbox?: number; approvals?: number }>({});
 
   useEffect(() => {
     async function loadData() {
@@ -113,7 +119,7 @@ export default function Sidebar() {
 
         if (profile.dealership_id) {
           // Fetch real counts across domain tables
-          const [stockRes, prepRes, leadsRes, dealsRes, tasksRes, signalsRes, inboxRes] = await Promise.all([
+          const [stockRes, prepRes, leadsRes, dealsRes, tasksRes, signalsRes, inboxRes, approvalsRes] = await Promise.all([
             supabase.from('vehicles').select('id', { count: 'exact', head: true }).eq('dealership_id', profile.dealership_id).in('status', ['available', 'advertised', 'ready_for_sale']),
             supabase.from('vehicles').select('id', { count: 'exact', head: true }).eq('dealership_id', profile.dealership_id).in('status', ['inspection', 'preparation', 'photography']),
             supabase.from('leads').select('id', { count: 'exact', head: true }).eq('dealership_id', profile.dealership_id).in('status', ['new', 'unassigned']),
@@ -121,6 +127,7 @@ export default function Sidebar() {
             supabase.from('tasks').select('id', { count: 'exact', head: true }).eq('dealership_id', profile.dealership_id).eq('status', 'open'),
             supabase.from('buying_signals').select('id', { count: 'exact', head: true }).eq('dealership_id', profile.dealership_id).eq('status', 'active'),
             supabase.from('conversations').select('id', { count: 'exact', head: true }).eq('dealership_id', profile.dealership_id).eq('status', 'open'),
+            supabase.from('ai_actions').select('id', { count: 'exact', head: true }).eq('dealership_id', profile.dealership_id).eq('status', 'awaiting_approval'),
           ]);
 
           setCounts({
@@ -131,6 +138,7 @@ export default function Sidebar() {
             tasks: tasksRes.count ?? 0,
             signals: signalsRes.count ?? 0,
             inbox: inboxRes.count ?? 0,
+            approvals: approvalsRes.count ?? 0,
           });
         }
       }

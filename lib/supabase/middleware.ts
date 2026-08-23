@@ -42,6 +42,7 @@ export async function updateSession(request: NextRequest) {
                           url.pathname.startsWith('/inbox') ||
                           url.pathname.startsWith('/tasks') ||
                           url.pathname.startsWith('/appointments') ||
+                          url.pathname.startsWith('/actions') ||
                           url.pathname.startsWith('/advertising') ||
                           url.pathname.startsWith('/website') ||
                           url.pathname.startsWith('/intelligence') ||
