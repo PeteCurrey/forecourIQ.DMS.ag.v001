@@ -30,7 +30,6 @@ import {
 import { cn, getInitials } from '@/lib/utils';
 import { createClient } from '@/lib/supabase/client';
 import { useRouter } from 'next/navigation';
-import { Badge } from '@/components/ui/badge';
 import { useEffect, useState } from 'react';
 
 interface DealershipProfile {
@@ -108,8 +107,9 @@ export default function Sidebar() {
         .single();
 
       if (profile) {
-        const d = profile.dealerships as unknown as DealershipProfile | null;
-        if (d) setDealership(d);
+        if (profile.dealerships) {
+          setDealership(profile.dealerships as any);
+        }
         setUser({
           id: authUser.id,
           email: authUser.email,
@@ -154,36 +154,36 @@ export default function Sidebar() {
   };
 
   return (
-    <aside className="w-[240px] h-screen bg-void border-r border-steel/80 fixed left-0 top-0 flex flex-col z-50">
+    <aside className="w-[240px] h-screen bg-[#0A0C10] border-r border-[#1C2029] fixed left-0 top-0 flex flex-col z-50 select-none">
       {/* Logo */}
-      <div className="h-[60px] flex items-center px-6 border-b border-steel/80">
+      <div className="h-[56px] flex items-center px-5 border-b border-[#1C2029]">
         <Link href="/dashboard" className="flex items-center gap-1">
-          <span className="font-syne font-bold text-lg text-cream tracking-tight">Forecour</span>
-          <span className="font-syne font-bold text-lg text-blue tracking-tight">IQ</span>
+          <span className="font-syne font-bold text-[17px] text-[#EDE8DC] tracking-tight">Forecour</span>
+          <span className="font-syne font-bold text-[17px] text-blue tracking-tight">IQ</span>
         </Link>
       </div>
 
       {/* Dealership Nameplate */}
-      <div className="px-6 py-3.5 border-b border-steel/60 bg-carbon/40">
-        <p className="font-inter font-medium text-[13px] text-cream truncate">
-          {dealership?.name || 'Dealership'}
+      <div className="px-5 py-3 border-b border-[#1C2029] bg-[#0D0F14]/50">
+        <p className="font-inter font-medium text-[12px] text-[#EDE8DC] truncate">
+          {dealership?.name || 'Hartwell Motor Group'}
         </p>
-        <div className="flex items-center gap-2 mt-0.5">
+        <div className="flex items-center gap-1.5 mt-0.5">
           <div className={cn(
             "w-1.5 h-1.5 rounded-full",
             dealership?.subscription_status === 'active' ? "bg-emerald-400" : "bg-blue"
           )} />
-          <span className="font-mono text-[9px] text-pewter uppercase tracking-wider">
-            {dealership?.subscription_tier || 'Starter'} · {dealership?.subscription_status || 'Active'}
+          <span className="font-mono text-[9px] text-[#5C6478] uppercase tracking-wider">
+            {dealership?.subscription_tier || 'Enterprise'} · {dealership?.subscription_status || 'Active'}
           </span>
         </div>
       </div>
 
       {/* Navigation */}
-      <nav className="flex-1 overflow-y-auto py-3">
+      <nav className="flex-1 overflow-y-auto py-2.5">
         {navSections.map((section) => (
-          <div key={section.label} className="mb-5">
-            <h3 className="px-5 mb-1.5 font-mono text-[9px] text-pewter/50 uppercase tracking-[0.2em]">
+          <div key={section.label} className="mb-4">
+            <h3 className="px-5 mb-1 font-mono text-[9px] text-[#5C6478]/70 uppercase tracking-[0.18em]">
               {section.label}
             </h3>
             <div className="space-y-0.5 px-2">
@@ -199,20 +199,20 @@ export default function Sidebar() {
                     key={item.href}
                     href={item.href}
                     className={cn(
-                      "flex items-center justify-between px-3 py-2 rounded-[2px] transition-all group font-inter text-[13px]",
+                      "flex items-center justify-between px-3 py-1.5 rounded-[2px] transition-colors group font-inter text-[12px]",
                       isActive 
-                        ? "bg-carbon text-cream border-l-2 border-blue font-medium shadow-sm" 
-                        : "text-silver/80 hover:bg-carbon/60 hover:text-cream"
+                        ? "bg-[#13161C] text-[#EDE8DC] border-l-2 border-blue font-medium" 
+                        : "text-[#9DA8B7]/80 hover:bg-[#13161C]/60 hover:text-[#EDE8DC]"
                     )}
                   >
                     <div className="flex items-center gap-2.5">
-                      <Icon size={15} className={cn(isActive ? "text-blue" : "text-pewter group-hover:text-silver")} />
+                      <Icon size={14} className={cn(isActive ? "text-blue" : "text-[#5C6478] group-hover:text-[#9DA8B7]")} />
                       <span>{item.label}</span>
                     </div>
                     {badgeCount !== undefined && badgeCount > 0 && (
                       <span className={cn(
                         "font-mono text-[9px] px-1.5 py-0.2 rounded-[2px] min-w-[16px] text-center",
-                        isActive ? "bg-blue/15 text-blue" : "bg-carbon border border-steel/60 text-pewter"
+                        isActive ? "bg-blue/15 text-blue" : "text-[#5C6478]"
                       )}>
                         {badgeCount}
                       </span>
@@ -226,26 +226,26 @@ export default function Sidebar() {
       </nav>
 
       {/* User Panel */}
-      <div className="p-3.5 border-t border-steel/80 bg-carbon/50 flex items-center justify-between">
+      <div className="p-3 border-t border-[#1C2029] bg-[#0D0F14]/50 flex items-center justify-between">
         <div className="flex items-center gap-2.5 overflow-hidden">
-          <div className="w-7 h-7 rounded-full bg-asphalt border border-steel flex items-center justify-center text-blue font-inter font-semibold text-[10px]">
-            {user?.full_name ? getInitials(user.full_name) : <User size={13} />}
+          <div className="w-6.5 h-6.5 rounded-full bg-[#13161C] border border-[#1C2029] flex items-center justify-center text-blue font-inter font-semibold text-[10px]">
+            {user?.full_name ? getInitials(user.full_name) : <User size={12} />}
           </div>
           <div className="overflow-hidden">
-            <p className="font-inter font-medium text-[12px] text-cream truncate">
-              {user?.full_name || 'Dealer User'}
+            <p className="font-inter font-medium text-[11px] text-[#EDE8DC] truncate">
+              {user?.full_name || 'Dealer Principal'}
             </p>
-            <p className="font-mono text-[9px] text-pewter uppercase tracking-wider truncate">
+            <p className="font-mono text-[9px] text-[#5C6478] uppercase tracking-wider truncate">
               {user?.role || 'Admin'}
             </p>
           </div>
         </div>
         <button 
           onClick={handleSignOut}
-          className="p-1.5 text-pewter hover:text-rose-400 transition-colors rounded-[2px]"
+          className="p-1 text-[#5C6478] hover:text-rose-400 transition-colors rounded-[2px]"
           title="Sign out"
         >
-          <LogOut size={14} />
+          <LogOut size={13} />
         </button>
       </div>
     </aside>

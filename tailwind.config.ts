@@ -2,6 +2,7 @@ import type { Config } from "tailwindcss";
 import typography from "@tailwindcss/typography";
 
 const config: Config = {
+  darkMode: 'class',
   content: [
     "./pages/**/*.{js,ts,jsx,tsx,mdx}",
     "./components/**/*.{js,ts,jsx,tsx,mdx}",
@@ -10,25 +11,26 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        void: '#07080B',
-        carbon: '#0D0F14',
-        graphite: '#10131A',
-        asphalt: '#13161C',
-        steel: '#1C2029',
-        slate: '#252B37',
+        void: 'var(--void)',
+        carbon: 'var(--carbon)',
+        graphite: 'var(--asphalt)',
+        asphalt: 'var(--asphalt)',
+        steel: 'var(--steel)',
+        slate: 'var(--slate)',
+        sidebar: 'var(--sidebar)',
         blue: {
           DEFAULT: '#0EA5E9',
           dim: '#0284C7',
           tint: 'rgba(14, 165, 233, 0.08)',
         },
-        cream: '#EDE8DC',
-        silver: '#9DA8B7',
-        pewter: '#5C6478',
-        muted: '#353D4C',
-        divider: '#181C24',
-        positive: '#3DB87A',
-        warning: '#D4922A',
-        negative: '#C94040',
+        cream: 'var(--cream)',
+        silver: 'var(--silver)',
+        pewter: 'var(--pewter)',
+        muted: 'var(--muted)',
+        divider: 'var(--steel)',
+        positive: 'var(--positive)',
+        warning: 'var(--warning)',
+        negative: 'var(--negative)',
       },
       fontFamily: {
         syne: ['var(--font-syne)', 'sans-serif'],

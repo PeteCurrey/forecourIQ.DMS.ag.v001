@@ -1,21 +1,22 @@
 @import "tailwindcss";
 
 :root {
-  --void: #FDFCF9;
-  --carbon: #F5F2EA;
-  --asphalt: #EEEBE1;
-  --steel: #E2DFC9;
-  --slate: #D5D1B8;
+  --void: #F5F4EF;
+  --carbon: #FBFAF7;
+  --asphalt: #EFEEE9;
+  --steel: #E2E0D8;
+  --slate: #D5D3CA;
   --blue: #0EA5E9;
   --blue-dim: #0284C7;
   --blue-tint: rgba(14, 165, 233, 0.08);
-  --cream: #1C1F26;
-  --silver: #4A4F59;
-  --pewter: #6B7280;
-  --muted: #A3A3A3;
-  --positive: #3DB87A;
-  --warning: #D4922A;
-  --negative: #C94040;
+  --cream: #171A1F;
+  --silver: #5F6670;
+  --pewter: #8A9098;
+  --muted: #A3A8B0;
+  --positive: #16A34A;
+  --warning: #D97706;
+  --negative: #DC2626;
+  --sidebar: #0A0C10;
 }
 
 .dark {
@@ -28,6 +29,10 @@
   --silver: #9DA8B7;
   --pewter: #5C6478;
   --muted: #353D4C;
+  --positive: #3DB87A;
+  --warning: #D4922A;
+  --negative: #C94040;
+  --sidebar: #0A0C10;
 }
 
 @theme {
@@ -46,6 +51,7 @@
   --color-positive: var(--positive);
   --color-warning: var(--warning);
   --color-negative: var(--negative);
+  --color-sidebar: var(--sidebar);
 
   --font-syne: var(--font-syne), sans-serif;
   --font-inter: var(--font-inter), sans-serif;
@@ -61,20 +67,27 @@
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     font-family: var(--font-inter);
-    transition: background-color 0.4s ease, color 0.4s ease, border-color 0.4s ease;
+    transition: background-color 0.25s ease, color 0.25s ease, border-color 0.25s ease;
   }
 
   h1, h2, h3, h4, h5, h6 {
-    font-family: var(--font-syne);
-    font-weight: 700;
+    font-family: var(--font-inter);
+    font-weight: 600;
     color: var(--color-cream);
+    letter-spacing: -0.02em;
+  }
+
+  /* Page titles and major identity headings */
+  .font-syne-title {
+    font-family: var(--font-syne);
+    font-weight: 600;
     letter-spacing: -0.025em;
   }
 
-  /* Typography rules */
+  /* Monospace typography strictly for IDs, reg numbers, codes */
   .font-mono {
     font-family: var(--font-mono);
-    letter-spacing: -0.025em;
+    letter-spacing: -0.02em;
   }
 
   /* Custom scrollbar */
@@ -98,30 +111,29 @@
 }
 
 @utility glass {
-  background-color: rgba(13, 15, 20, 0.8);
-  backdrop-filter: blur(12px);
+  background-color: var(--color-carbon);
   border: 1px solid var(--color-steel);
 }
 
 @utility nav-item-active {
-  background-color: var(--color-blue-tint);
-  color: var(--color-cream);
+  background-color: rgba(14, 165, 233, 0.08);
+  color: #EDE8DC;
   border-left: 2px solid var(--color-blue);
 }
 
 @utility nav-item-hover {
   &:hover {
-    background-color: var(--color-asphalt);
-    color: var(--color-cream);
+    background-color: rgba(255, 255, 255, 0.05);
+    color: #EDE8DC;
   }
-  transition: all 0.2s;
+  transition: all 0.15s ease;
 }
 
-/* Subtle dashboard card entrance animations */
-@keyframes fadeIn {
+/* Staggered Calm Dashboard Section Entrance System */
+@keyframes sectionReveal {
   from {
     opacity: 0;
-    transform: translateY(4px);
+    transform: translateY(10px);
   }
   to {
     opacity: 1;
@@ -129,32 +141,53 @@
   }
 }
 
+.reveal-1 {
+  animation: sectionReveal 500ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.reveal-2 {
+  animation: sectionReveal 500ms cubic-bezier(0.16, 1, 0.3, 1) 70ms both;
+}
+
+.reveal-3 {
+  animation: sectionReveal 500ms cubic-bezier(0.16, 1, 0.3, 1) 140ms both;
+}
+
+.reveal-4 {
+  animation: sectionReveal 500ms cubic-bezier(0.16, 1, 0.3, 1) 210ms both;
+}
+
+.reveal-5 {
+  animation: sectionReveal 500ms cubic-bezier(0.16, 1, 0.3, 1) 280ms both;
+}
+
+.reveal-6 {
+  animation: sectionReveal 500ms cubic-bezier(0.16, 1, 0.3, 1) 350ms both;
+}
+
 .animate-fade-in {
-  animation: fadeIn 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  animation: sectionReveal 400ms cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
-.animate-fade-in-delay-1 {
-  animation: fadeIn 0.4s cubic-bezier(0.16, 1, 0.3, 1) 0.08s forwards;
-  opacity: 0;
+@media (prefers-reduced-motion: reduce) {
+  .reveal-1,
+  .reveal-2,
+  .reveal-3,
+  .reveal-4,
+  .reveal-5,
+  .reveal-6,
+  .animate-fade-in {
+    animation: none !important;
+    opacity: 1 !important;
+    transform: none !important;
+  }
 }
 
-.animate-fade-in-delay-2 {
-  animation: fadeIn 0.4s cubic-bezier(0.16, 1, 0.3, 1) 0.16s forwards;
-  opacity: 0;
+/* Row & interactive hover transitions (no physical container lift) */
+.row-hover {
+  transition: background-color 0.15s ease, border-color 0.15s ease;
 }
 
-.animate-fade-in-delay-3 {
-  animation: fadeIn 0.4s cubic-bezier(0.16, 1, 0.3, 1) 0.24s forwards;
-  opacity: 0;
-}
-
-/* Gentle card hover micro-interaction */
-.card-hover {
-  transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.25s ease, box-shadow 0.25s ease, background-color 0.25s ease;
-}
-
-.card-hover:hover {
-  transform: translateY(-1px);
-  border-color: rgba(157, 168, 183, 0.25);
-  box-shadow: 0 6px 20px -4px rgba(0, 0, 0, 0.4);
+.row-hover:hover {
+  background-color: var(--color-asphalt);
 }

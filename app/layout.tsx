@@ -33,17 +33,18 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className={`${inter.variable} ${syne.variable} ${jetbrainsMono.variable}`}>
+    <html lang="en" className={`${inter.variable} ${syne.variable} ${jetbrainsMono.variable}`} suppressHydrationWarning>
       <body className="bg-void text-cream antialiased font-inter">
         <Providers>
           {children}
           <Toaster 
             position="bottom-right" 
             toastOptions={{
+              className: "border font-inter text-[13px]",
               style: {
-                background: '#0D0F14',
-                border: '1px solid #1C2029',
-                color: '#EDE8DC',
+                background: 'var(--carbon)',
+                borderColor: 'var(--steel)',
+                color: 'var(--cream)',
                 fontFamily: 'var(--font-inter)',
               },
             }}

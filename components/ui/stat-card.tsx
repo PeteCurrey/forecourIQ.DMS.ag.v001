@@ -13,8 +13,8 @@ interface StatCardProps {
 
 export function StatCard({ label, value, sub, delta, className }: StatCardProps) {
   return (
-    <div className={cn("bg-carbon border border-steel rounded-[2px] p-6", className)}>
-      <div className="space-y-1 mb-4">
+    <div className={cn("bg-carbon border border-steel rounded-[2px] p-5 shadow-2xs", className)}>
+      <div className="space-y-1 mb-3">
         <span className="font-mono text-[10px] text-pewter uppercase tracking-[0.12em]">
           {label}
         </span>
@@ -22,15 +22,15 @@ export function StatCard({ label, value, sub, delta, className }: StatCardProps)
       
       <div className="flex flex-col gap-1">
         <h3 className={cn(
-          "font-syne font-bold text-cream leading-tight",
-          typeof value === 'string' && value.length > 8 ? "text-[32px]" : "text-5xl"
+          "font-mono font-bold text-cream leading-tight tracking-tight",
+          typeof value === 'string' && value.length > 8 ? "text-2xl" : "text-3xl"
         )}>
           {value}
         </h3>
         
         <div className="flex items-center justify-between mt-2">
           {sub && (
-            <span className="font-inter text-sm text-silver">
+            <span className="font-inter text-xs text-silver">
               {sub}
             </span>
           )}

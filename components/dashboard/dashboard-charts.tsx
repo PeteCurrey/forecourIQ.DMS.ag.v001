@@ -13,11 +13,11 @@ export default function LeadPipelineChart({ pipelineData }: { pipelineData: Pipe
 
   const stageColors: Record<string, string> = {
     'New': '#0EA5E9',
-    'Contacted': '#38BDF8',
-    'Test Drive': '#818CF8',
-    'Offer': '#A78BFA',
-    'Won': '#3DB87A',
-    'Lost': '#C94040',
+    'Contacted': '#0284C7',
+    'Test Drive': '#6366F1',
+    'Offer': '#8B5CF6',
+    'Won': '#16A34A',
+    'Lost': '#DC2626',
   }
 
   const chartData = pipelineData.map(d => ({
@@ -27,14 +27,15 @@ export default function LeadPipelineChart({ pipelineData }: { pipelineData: Pipe
 
   const tooltipStyle = {
     contentStyle: {
-      backgroundColor: '#0D0F14',
-      border: '1px solid #1C2029',
+      backgroundColor: 'var(--carbon)',
+      border: '1px solid var(--steel)',
       borderRadius: '2px',
       fontFamily: 'var(--font-inter)',
       fontSize: '11px',
-      color: '#EDE8DC',
+      color: 'var(--cream)',
+      boxShadow: '0 2px 8px rgba(0, 0, 0, 0.08)',
     },
-    cursor: { fill: 'rgba(255,255,255,0.03)' }
+    cursor: { fill: 'var(--asphalt)' }
   }
 
   if (totalLeads === 0) {
@@ -48,9 +49,9 @@ export default function LeadPipelineChart({ pipelineData }: { pipelineData: Pipe
   return (
     <div className="w-full h-44">
       <ResponsiveContainer width="100%" height="100%">
-        <BarChart data={chartData} layout="vertical" barSize={12} margin={{ top: 5, right: 10, left: -10, bottom: 5 }}>
-          <XAxis type="number" tick={{ fontFamily: 'var(--font-mono)', fontSize: 10, fill: '#5C6478' }} axisLine={false} tickLine={false} allowDecimals={false} />
-          <YAxis dataKey="name" type="category" tick={{ fontFamily: 'var(--font-inter)', fontSize: 11, fill: '#9DA8B7' }} axisLine={false} tickLine={false} width={80} />
+        <BarChart data={chartData} layout="vertical" barSize={11} margin={{ top: 5, right: 10, left: -15, bottom: 5 }}>
+          <XAxis type="number" tick={{ fontFamily: 'var(--font-mono)', fontSize: 10, fill: 'var(--pewter)' }} axisLine={false} tickLine={false} allowDecimals={false} />
+          <YAxis dataKey="name" type="category" tick={{ fontFamily: 'var(--font-inter)', fontSize: 11, fill: 'var(--silver)' }} axisLine={false} tickLine={false} width={80} />
           <Tooltip {...tooltipStyle} formatter={(val: number) => [val, 'Leads']} />
           <Bar dataKey="count" radius={[0, 1, 1, 0]}>
             {chartData.map((entry, index) => (
