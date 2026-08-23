@@ -15,7 +15,8 @@ import {
   Settings, 
   CreditCard,
   LogOut,
-  User
+  User,
+  Handshake
 } from 'lucide-react';
 import { cn, getInitials } from '@/lib/utils';
 import { createClient } from '@/lib/supabase/client';
@@ -45,6 +46,7 @@ const navSections = [
       { label: 'Preparation', icon: Wrench, href: '/stock/preparation', badgeKey: 'prep' },
       { label: 'Inbox', icon: Inbox, href: '/inbox', badgeKey: 'inbox' },
       { label: 'Leads', icon: Users, href: '/leads', badgeKey: 'leads' },
+      { label: 'Deal Desk', icon: Handshake, href: '/deals', badgeKey: 'deals' },
       { label: 'Customers', icon: User, href: '/customers' },
       { label: 'Tasks', icon: CheckSquare, href: '/tasks', badgeKey: 'tasks' },
       { label: 'Appointments', icon: Calendar, href: '/appointments' },
@@ -72,7 +74,7 @@ export default function Sidebar() {
   const supabase = createClient();
   const [user, setUser] = useState<UserInfo | null>(null);
   const [dealership, setDealership] = useState<DealershipProfile | null>(null);
-  const [counts, setCounts] = useState<{ stock?: number; prep?: number; leads?: number; tasks?: number; signals?: number; inbox?: number }>({});
+  const [counts, setCounts] = useState<{ stock?: number; prep?: number; leads?: number; deals?: number; tasks?: number; signals?: number; inbox?: number }>({});
 
   useEffect(() => {
     async function loadData() {
@@ -97,11 +99,12 @@ export default function Sidebar() {
 
         if (profile.dealership_id) {
           // Fetch real counts across domain tables
-          const [stockRes, prepRes, leadsRes, tasksRes, signalsRes, inboxRes] = await Promise.all([
+          const [stockRes, prepRes, leadsRes, dealsRes, tasksRes, signalsRes, inboxRes] = await Promise.all([
             supabase.from('vehicles').select('id', { count: 'exact', head: true }).eq('dealership_id', profile.dealership_id).in('status', ['available', 'advertised', 'ready_for_sale']),
             supabase.from('vehicles').select('id', { count: 'exact', head: true }).eq('dealership_id', profile.dealership_id).in('status', ['inspection', 'preparation', 'photography']),
             supabase.from('leads').select('id', { count: 'exact', head: true }).eq('dealership_id', profile.dealership_id).in('status', ['new', 'unassigned']),
-            supabase.from('tasks').select('id', { count: 'exact', head: true }).eq('dealership_id', profile.dealership_id).in('status', ['open', 'in_progress']),
+            supabase.from('deals').select('id', { count: 'exact', head: true }).eq('dealership_id', profile.dealership_id).not('status', 'in', '("completed","cancelled","lost")'),
+            supabase.from('tasks').select('id', { count: 'exact', head: true }).eq('dealership_id', profile.dealership_id).eq('status', 'open'),
             supabase.from('buying_signals').select('id', { count: 'exact', head: true }).eq('dealership_id', profile.dealership_id).eq('status', 'active'),
             supabase.from('conversations').select('id', { count: 'exact', head: true }).eq('dealership_id', profile.dealership_id).eq('status', 'open'),
           ]);
@@ -110,6 +113,7 @@ export default function Sidebar() {
             stock: stockRes.count ?? 0,
             prep: prepRes.count ?? 0,
             leads: leadsRes.count ?? 0,
+            deals: dealsRes.count ?? 0,
             tasks: tasksRes.count ?? 0,
             signals: signalsRes.count ?? 0,
             inbox: inboxRes.count ?? 0,

@@ -14,11 +14,13 @@ import {
   Clock, 
   Car, 
   PoundSterling,
-  Plus
+  Plus,
+  Handshake
 } from 'lucide-react'
 import DashboardCharts from '@/components/dashboard/dashboard-charts'
 import BuyingSignalsPreview from '@/components/dashboard/buying-signals-preview'
 import { VehicleService } from '@/lib/services/vehicle'
+import { DealService } from '@/lib/services/deal'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 
@@ -48,6 +50,7 @@ export default async function DashboardPage() {
   // Real Database Queries
   const [
     kpis,
+    dealKpis,
     { data: activeVehicles },
     { data: todayAppointments },
     { data: todayTasks },
@@ -57,6 +60,7 @@ export default async function DashboardPage() {
     { data: buyingSignals },
   ] = await Promise.all([
     VehicleService.getStockKPIs(dealershipId),
+    DealService.getKPIs(dealershipId),
     supabase.from('vehicles').select('*').eq('dealership_id', dealershipId).not('status', 'in', '("sold","completed","archived")'),
     supabase.from('appointments').select('*, vehicles(registration, make, model), customers(first_name, last_name)').eq('dealership_id', dealershipId).gte('start_at', todayStart).lte('start_at', todayEnd).order('start_at', { ascending: true }),
     supabase.from('tasks').select('*').eq('dealership_id', dealershipId).eq('status', 'open').lte('due_at', todayEnd).order('due_at', { ascending: true }),
@@ -140,6 +144,41 @@ export default async function DashboardPage() {
           </p>
         </div>
 
+      </div>
+
+      {/* DEAL DESK COMMERCIAL PIPELINE */}
+      <div className="bg-carbon border border-steel rounded-[2px] p-5">
+        <div className="flex items-center justify-between mb-3 pb-2 border-b border-steel">
+          <div className="flex items-center gap-2">
+            <Handshake size={18} className="text-blue" />
+            <h2 className="font-syne font-bold text-base text-cream">DEAL DESK PIPELINE</h2>
+          </div>
+          <Link href="/deals" className="text-xs text-blue hover:underline font-mono flex items-center gap-1">
+            OPEN DEAL DESK <ArrowRight size={12} />
+          </Link>
+        </div>
+
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-xs font-mono">
+          <div className="bg-asphalt p-3 rounded-[2px] border border-steel">
+            <span className="text-pewter uppercase text-[10px] block">Active Deals in Progress</span>
+            <span className="text-xl font-bold text-cream">{dealKpis.totalActive}</span>
+          </div>
+
+          <div className="bg-asphalt p-3 rounded-[2px] border border-steel">
+            <span className="text-pewter uppercase text-[10px] block">Deposits Outstanding</span>
+            <span className="text-xl font-bold text-warning">{dealKpis.depositsOutstanding}</span>
+          </div>
+
+          <div className="bg-asphalt p-3 rounded-[2px] border border-steel">
+            <span className="text-pewter uppercase text-[10px] block">Deliveries / Handovers 7D</span>
+            <span className="text-xl font-bold text-blue">{dealKpis.handoversThisWeek}</span>
+          </div>
+
+          <div className="bg-asphalt p-3 rounded-[2px] border border-steel">
+            <span className="text-pewter uppercase text-[10px] block">Agreed & Awaiting Delivery</span>
+            <span className="text-xl font-bold text-positive">{dealKpis.byStatus?.agreed || 0}</span>
+          </div>
+        </div>
       </div>
 
       {/* TODAY OPERATIONAL AGENDA & WORKFLOW */}

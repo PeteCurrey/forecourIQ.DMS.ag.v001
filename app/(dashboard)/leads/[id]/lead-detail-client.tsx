@@ -24,7 +24,8 @@ import {
   ChevronRight,
   Loader2,
   Check,
-  Tag
+  Tag,
+  Handshake
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -476,6 +477,14 @@ export default function LeadDetailClient({
             >
               <Sparkles size={14} /> {currentLead.status === 'deal_ready' ? 'DEAL READY ✓' : 'MARK DEAL READY'}
             </Button>
+
+            {/* Structure Deal Button */}
+            <Link
+              href={`/deals/new?lead_id=${currentLead.id}&vehicle_id=${currentLead.vehicle_id || ''}&customer_id=${currentLead.customer_id || ''}`}
+              className="inline-flex items-center gap-1.5 bg-blue hover:bg-blue/90 text-cream px-3 py-1.5 rounded-[2px] font-mono text-xs font-bold uppercase transition"
+            >
+              <Handshake size={14} /> Structure Deal
+            </Link>
           </div>
 
         </div>
