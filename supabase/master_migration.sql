@@ -3363,3 +3363,67 @@ CREATE POLICY "notifications_tenant_isolation" ON public.notifications
 
 CREATE POLICY "notification_prefs_user_isolation" ON public.notification_preferences
   FOR ALL USING (user_id = auth.uid());
+
+-- ============================================================================
+-- Phase 2: Stock Management Module Extensions & Filter Presets
+-- ============================================================================
+
+ALTER TABLE public.vehicles ADD COLUMN IF NOT EXISTS source text DEFAULT 'other'
+  CHECK (source IN ('trade_in', 'auction', 'part_ex', 'sourced_ai', 'other'));
+
+ALTER TABLE public.vehicles ADD COLUMN IF NOT EXISTS vrm text;
+UPDATE public.vehicles SET vrm = registration WHERE vrm IS NULL;
+
+ALTER TABLE public.vehicles ADD COLUMN IF NOT EXISTS cost_price numeric(10,2);
+UPDATE public.vehicles SET cost_price = purchase_price WHERE cost_price IS NULL AND purchase_price IS NOT NULL;
+
+ALTER TABLE public.vehicles ADD COLUMN IF NOT EXISTS forecourt_price numeric(10,2);
+UPDATE public.vehicles SET forecourt_price = asking_price WHERE forecourt_price IS NULL AND asking_price IS NOT NULL;
+
+ALTER TABLE public.vehicles ADD COLUMN IF NOT EXISTS reconditioning_cost_total numeric(10,2) DEFAULT 0;
+
+ALTER TABLE public.dealerships ADD COLUMN IF NOT EXISTS stock_aging_warn_days integer DEFAULT 45;
+ALTER TABLE public.dealerships ADD COLUMN IF NOT EXISTS stock_aging_danger_days integer DEFAULT 60;
+ALTER TABLE public.dealerships ADD COLUMN IF NOT EXISTS stock_aging_critical_days integer DEFAULT 90;
+
+CREATE TABLE IF NOT EXISTS public.stock_filter_presets (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  dealership_id uuid NOT NULL REFERENCES public.dealerships(id) ON DELETE CASCADE,
+  user_id uuid NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
+  name text NOT NULL,
+  filters jsonb NOT NULL DEFAULT '{}'::jsonb,
+  is_default boolean DEFAULT false,
+  created_at timestamptz DEFAULT now(),
+  updated_at timestamptz DEFAULT now()
+);
+
+ALTER TABLE public.stock_filter_presets ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "stock_filter_presets_select_policy" ON public.stock_filter_presets
+  FOR SELECT USING (
+    dealership_id IN (SELECT dealership_id FROM public.profiles WHERE id = auth.uid())
+    AND (user_id = auth.uid() OR is_default = true)
+  );
+
+CREATE POLICY "stock_filter_presets_insert_policy" ON public.stock_filter_presets
+  FOR INSERT WITH CHECK (
+    dealership_id IN (SELECT dealership_id FROM public.profiles WHERE id = auth.uid())
+    AND user_id = auth.uid()
+  );
+
+CREATE POLICY "stock_filter_presets_update_policy" ON public.stock_filter_presets
+  FOR UPDATE USING (
+    dealership_id IN (SELECT dealership_id FROM public.profiles WHERE id = auth.uid())
+    AND user_id = auth.uid()
+  );
+
+CREATE POLICY "stock_filter_presets_delete_policy" ON public.stock_filter_presets
+  FOR DELETE USING (
+    dealership_id IN (SELECT dealership_id FROM public.profiles WHERE id = auth.uid())
+    AND user_id = auth.uid()
+  );
+
+CREATE INDEX IF NOT EXISTS idx_stock_filter_presets_user ON public.stock_filter_presets(user_id, dealership_id);
+CREATE INDEX IF NOT EXISTS idx_vehicles_source ON public.vehicles(dealership_id, source);
+CREATE INDEX IF NOT EXISTS idx_vehicles_vrm ON public.vehicles(dealership_id, vrm);
+

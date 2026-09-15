@@ -4,6 +4,9 @@
  */
 
 export type VehicleLifecycleStatus =
+  | 'incoming'
+  | 'in_prep'
+  | 'listed'
   | 'acquiring'
   | 'purchased'
   | 'in_transit'
@@ -22,16 +25,20 @@ export type VehicleLifecycleStatus =
   | 'wholesale'
   | 'archived'
 
+export type VehicleSource = 'trade_in' | 'auction' | 'part_ex' | 'sourced_ai' | 'other'
+
 export interface VehicleRecord {
   id: string
   dealership_id: string
   location_id?: string | null
   assigned_user_id?: string | null
   registration: string
+  vrm?: string | null
   vin?: string | null
   make: string
   model: string
   variant?: string | null
+  derivative?: string | null
   year: number
   mileage: number
   colour?: string | null
@@ -59,12 +66,16 @@ export interface VehicleRecord {
   purchase_date?: string | null
   purchase_reference?: string | null
   funding_source?: string | null
+  source?: VehicleSource | string | null
   purchase_price: number
+  cost_price?: number | null
   auction_fee: number
   transport_cost: number
   prep_cost: number
+  reconditioning_cost_total?: number | null
   other_acquisition_costs: number
   asking_price: number
+  forecourt_price?: number | null
   sold_price?: number | null
   sold_at?: string | null
   margin_amount?: number | null
@@ -233,3 +244,76 @@ export function exportToCSV(vehicles: VehicleRecord[]): string {
 
   return [headers.join(','), ...rows].join('\n')
 }
+
+/**
+ * Calculate days in stock deterministically.
+ */
+export function calculateDaysInStock(
+  purchaseDateOrCreatedAt?: string | Date | null,
+  referenceDate: Date = new Date()
+): number {
+  if (!purchaseDateOrCreatedAt) return 0
+  const start = new Date(purchaseDateOrCreatedAt).getTime()
+  const now = referenceDate.getTime()
+  if (isNaN(start) || start > now) return 0
+  return Math.floor((now - start) / (1000 * 60 * 60 * 24))
+}
+
+/**
+ * Aging severity with status colour escalation:
+ * info (< 45d threshold) -> warning (45d-60d) -> danger (> 60d or > 90d)
+ */
+export function getAgingSeverity(
+  daysInStock: number,
+  thresholds: { warn?: number; danger?: number; critical?: number } = {}
+): 'ok' | 'info' | 'warning' | 'danger' {
+  const warn = thresholds.warn ?? 45
+  const danger = thresholds.danger ?? 60
+  const critical = thresholds.critical ?? 90
+
+  if (daysInStock >= danger || daysInStock >= critical) return 'danger'
+  if (daysInStock >= warn) return 'warning'
+  if (daysInStock > 30) return 'info'
+  return 'ok'
+}
+
+/**
+ * Apply bulk price adjustment with decimal currency precision.
+ */
+export function applyBulkPriceAdjustment(
+  currentPrice: number,
+  adjustmentType: 'percent' | 'fixed',
+  amount: number
+): number {
+  const price = Number(currentPrice) || 0
+  if (adjustmentType === 'percent') {
+    const factor = 1 + amount / 100
+    const adjusted = Math.round(price * factor * 100) / 100
+    return Math.max(0, Math.round(adjusted))
+  } else {
+    const adjusted = price + amount
+    return Math.max(0, Math.round(adjusted * 100) / 100)
+  }
+}
+
+/**
+ * True landed cost rollup per unit.
+ */
+export function calculateLandedCost(
+  purchasePrice: number,
+  prepCosts: number,
+  transportCost: number = 0,
+  otherCosts: number = 0
+): number {
+  return Math.max(
+    0,
+    Math.round(
+      ((Number(purchasePrice) || 0) +
+        (Number(prepCosts) || 0) +
+        (Number(transportCost) || 0) +
+        (Number(otherCosts) || 0)) *
+        100
+    ) / 100
+  )
+}
+

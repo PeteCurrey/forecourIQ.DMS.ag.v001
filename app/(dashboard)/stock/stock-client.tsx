@@ -1,8 +1,8 @@
-'use client'
+'use client';
 
-import { useState, useMemo } from 'react'
-import Link from 'next/link'
-import { useRouter } from 'next/navigation'
+import { useState, useMemo, useEffect, useRef } from 'react';
+import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { 
   Plus, 
   Download, 
@@ -10,39 +10,76 @@ import {
   List, 
   LayoutGrid, 
   ChevronRight, 
+  ChevronLeft,
   Image as ImageIcon, 
   CheckCircle2, 
   AlertTriangle,
+  AlertCircle,
   MapPin,
   Calendar,
   Filter,
-  Car
-} from 'lucide-react'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Badge } from '@/components/ui/badge'
-import { formatCurrency, formatRegistration } from '@/lib/format'
-import { VehicleRecord, StockKPISummary, calculateCommercials, checkAdvertisingReadiness } from '@/lib/services/vehicle-calc'
-import { cn } from '@/lib/utils'
-import { toast } from 'sonner'
+  Car,
+  Tag,
+  DollarSign,
+  Clock,
+  Bookmark,
+  Trash2,
+  X,
+  ArrowRight,
+  TrendingDown,
+  TrendingUp,
+  Percent,
+  Layers
+} from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { formatCurrency, formatRegistration } from '@/lib/format';
+import { 
+  VehicleRecord, 
+  VehicleLifecycleStatus,
+  StockKPISummary, 
+  calculateCommercials, 
+  checkAdvertisingReadiness,
+  calculateDaysInStock,
+  getAgingSeverity,
+  applyBulkPriceAdjustment
+} from '@/lib/services/vehicle-calc';
+import { BreathingCard } from '@/components/ui/breathing-card';
+import { cn } from '@/lib/utils';
+import { toast } from 'sonner';
 
-const STATUS_TABS = [
+const STATUS_TABS: { id: string; label: string }[] = [
   { id: 'all', label: 'All Stock' },
   { id: 'available', label: 'Available' },
+  { id: 'in_prep', label: 'In Prep' },
   { id: 'advertised', label: 'Advertised' },
-  { id: 'preparation', label: 'In Prep' },
-  { id: 'in_transit', label: 'In Transit' },
-  { id: 'purchased', label: 'Purchased' },
   { id: 'reserved', label: 'Reserved' },
   { id: 'sold', label: 'Sold' },
   { id: 'archived', label: 'Archived' },
-]
+];
+
+const PRICE_BANDS = [
+  { id: 'all', label: 'All Prices' },
+  { id: 'under_15k', label: 'Under £15,000', min: 0, max: 15000 },
+  { id: '15k_30k', label: '£15k – £30k', min: 15000, max: 30000 },
+  { id: '30k_50k', label: '£30k – £50k', min: 30000, max: 50000 },
+  { id: 'over_50k', label: 'Over £50,000', min: 50000, max: Infinity },
+];
+
+const AGE_BANDS = [
+  { id: 'all', label: 'All Stock Age' },
+  { id: '0_30', label: '0–30 Days (Fresh)', min: 0, max: 30 },
+  { id: '31_45', label: '31–45 Days (Target)', min: 31, max: 45 },
+  { id: '46_60', label: '46–60 Days (Aging Alert)', min: 46, max: 60 },
+  { id: '61_90', label: '61–90 Days (Critical)', min: 61, max: 90 },
+  { id: 'over_90', label: '90+ Days (Severe)', min: 91, max: Infinity },
+];
 
 interface StockClientProps {
-  initialVehicles: VehicleRecord[]
-  kpis: StockKPISummary
-  locations: { id: string; name: string }[]
-  teamMembers: { id: string; full_name: string }[]
+  initialVehicles: VehicleRecord[];
+  kpis: StockKPISummary;
+  locations?: { id: string; name: string }[];
+  teamMembers?: { id: string; full_name: string }[];
 }
 
 export default function StockClient({ 
@@ -51,527 +88,1044 @@ export default function StockClient({
   locations = [], 
   teamMembers = [] 
 }: StockClientProps) {
-  const router = useRouter()
-  const [vehicles, setVehicles] = useState<VehicleRecord[]>(initialVehicles)
-  const [viewMode, setViewMode] = useState<'table' | 'grid'>('table')
-  const [search, setSearch] = useState('')
-  const [statusTab, setStatusTab] = useState('all')
-  const [selectedLocation, setSelectedLocation] = useState('all')
-  const [sortBy, setSortBy] = useState<'newest' | 'oldest' | 'price_desc' | 'price_asc' | 'margin_desc' | 'days_desc'>('newest')
-  const [selectedIds, setSelectedIds] = useState<string[]>([])
-  const [isBulkActioning, setIsBulkActioning] = useState(false)
+  const router = useRouter();
+  const [vehicles, setVehicles] = useState<VehicleRecord[]>(initialVehicles);
+  const [viewMode, setViewMode] = useState<'table' | 'grid'>('table');
+  const [search, setSearch] = useState('');
+  const [statusTab, setStatusTab] = useState('all');
+  const [selectedMake, setSelectedMake] = useState('all');
+  const [selectedPriceBand, setSelectedPriceBand] = useState('all');
+  const [selectedAgeBand, setSelectedAgeBand] = useState('all');
+  const [sortBy, setSortBy] = useState<'newest' | 'oldest' | 'price_desc' | 'price_asc' | 'days_desc'>('newest');
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [isBulkActioning, setIsBulkActioning] = useState(false);
+
+  // Modals for bulk operations
+  const [showStatusModal, setShowStatusModal] = useState(false);
+  const [bulkTargetStatus, setBulkTargetStatus] = useState<VehicleLifecycleStatus>('available');
+  const [showPriceModal, setShowPriceModal] = useState(false);
+  const [priceAdjType, setPriceAdjType] = useState<'percent' | 'fixed'>('percent');
+  const [priceAdjAmount, setPriceAdjAmount] = useState<number>(-5);
+
+  // Saved Presets state
+  const [presets, setPresets] = useState<Array<{ id: string; name: string; filters: any }>>([]);
+  const [showSavePresetModal, setShowSavePresetModal] = useState(false);
+  const [newPresetName, setNewPresetName] = useState('');
+
+  // Filmstrip selection state
+  const filmstripScrollRef = useRef<HTMLDivElement>(null);
+  const [activeFilmstripId, setActiveFilmstripId] = useState<string | null>(null);
+
+  // Fetch saved filter presets
+  useEffect(() => {
+    async function loadPresets() {
+      try {
+        const res = await fetch('/api/stock/presets');
+        const data = await res.json();
+        if (data.presets) {
+          setPresets(data.presets);
+        }
+      } catch (err) {
+        console.warn('Failed to load presets:', err);
+      }
+    }
+    loadPresets();
+  }, []);
+
+  // Compute unique makes for dropdown
+  const uniqueMakes = useMemo(() => {
+    const set = new Set<string>();
+    vehicles.forEach((v) => {
+      if (v.make) set.add(v.make);
+    });
+    return Array.from(set).sort();
+  }, [vehicles]);
 
   // Filtered & Sorted Vehicles
   const filteredVehicles = useMemo(() => {
-    return vehicles.filter(v => {
+    return vehicles.filter((v) => {
       // Status Filter
       if (statusTab !== 'all') {
-        if (statusTab === 'preparation') {
-          if (!['inspection', 'preparation', 'photography'].includes(v.status)) return false
+        if (statusTab === 'in_prep') {
+          if (!['inspection', 'preparation', 'in_prep', 'photography'].includes(v.status)) return false;
         } else if (v.status !== statusTab) {
-          return false
+          return false;
         }
       }
 
-      // Location Filter
-      if (selectedLocation !== 'all' && v.location_id !== selectedLocation) {
-        return false
+      // Make Filter
+      if (selectedMake !== 'all' && v.make.toLowerCase() !== selectedMake.toLowerCase()) {
+        return false;
+      }
+
+      // Price Band Filter
+      if (selectedPriceBand !== 'all') {
+        const band = PRICE_BANDS.find((b) => b.id === selectedPriceBand);
+        if (band && band.min !== undefined && band.max !== undefined) {
+          const price = Number(v.asking_price || v.forecourt_price || 0);
+          if (price < band.min || price > band.max) return false;
+        }
+      }
+
+      // Age Band Filter
+      if (selectedAgeBand !== 'all') {
+        const band = AGE_BANDS.find((b) => b.id === selectedAgeBand);
+        if (band && band.min !== undefined && band.max !== undefined) {
+          const days = calculateDaysInStock(v.purchase_date || v.created_at);
+          if (days < band.min || days > band.max) return false;
+        }
       }
 
       // Search Filter
       if (search.trim()) {
-        const term = search.trim().toLowerCase()
-        const regMatch = v.registration?.toLowerCase().includes(term)
-        const makeMatch = v.make?.toLowerCase().includes(term)
-        const modelMatch = v.model?.toLowerCase().includes(term)
-        const variantMatch = v.variant?.toLowerCase().includes(term)
-        const vinMatch = v.vin?.toLowerCase().includes(term)
-        if (!regMatch && !makeMatch && !modelMatch && !variantMatch && !vinMatch) return false
+        const term = search.trim().toLowerCase().replace(/\s+/g, '');
+        const reg = (v.registration || v.vrm || '').toLowerCase().replace(/\s+/g, '');
+        const make = (v.make || '').toLowerCase();
+        const model = (v.model || '').toLowerCase();
+        const variant = (v.variant || v.derivative || '').toLowerCase();
+        const vin = (v.vin || '').toLowerCase();
+        if (!reg.includes(term) && !make.includes(term) && !model.includes(term) && !variant.includes(term) && !vin.includes(term)) {
+          return false;
+        }
       }
 
-      return true
+      return true;
     }).sort((a, b) => {
-      const commsA = calculateCommercials(a)
-      const commsB = calculateCommercials(b)
+      if (sortBy === 'newest') return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+      if (sortBy === 'oldest') return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
+      if (sortBy === 'price_desc') return Number(b.asking_price || 0) - Number(a.asking_price || 0);
+      if (sortBy === 'price_asc') return Number(a.asking_price || 0) - Number(b.asking_price || 0);
+      if (sortBy === 'days_desc') {
+        const daysA = calculateDaysInStock(a.purchase_date || a.created_at);
+        const daysB = calculateDaysInStock(b.purchase_date || b.created_at);
+        return daysB - daysA;
+      }
+      return 0;
+    });
+  }, [vehicles, search, statusTab, selectedMake, selectedPriceBand, selectedAgeBand, sortBy]);
 
-      if (sortBy === 'newest') return new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-      if (sortBy === 'oldest') return new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
-      if (sortBy === 'price_desc') return (b.asking_price || 0) - (a.asking_price || 0)
-      if (sortBy === 'price_asc') return (a.asking_price || 0) - (b.asking_price || 0)
-      if (sortBy === 'margin_desc') return commsB.projectedGrossMargin - commsA.projectedGrossMargin
-      if (sortBy === 'days_desc') return commsB.daysOwned - commsA.daysOwned
-      return 0
-    })
-  }, [vehicles, search, statusTab, selectedLocation, sortBy])
+  // Top filmstrip units (highest priority attention / newest units)
+  const filmstripUnits = useMemo(() => {
+    return filteredVehicles.slice(0, 10);
+  }, [filteredVehicles]);
 
   const toggleSelectAll = () => {
     if (selectedIds.length === filteredVehicles.length) {
-      setSelectedIds([])
+      setSelectedIds([]);
     } else {
-      setSelectedIds(filteredVehicles.map(v => v.id))
+      setSelectedIds(filteredVehicles.map((v) => v.id));
     }
-  }
+  };
 
   const toggleSelectOne = (id: string) => {
-    setSelectedIds(prev => 
-      prev.includes(id) ? prev.filter(item => item !== id) : [...prev, id]
-    )
-  }
+    setSelectedIds((prev) => 
+      prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]
+    );
+  };
 
   const handleExportCSV = () => {
-    window.location.href = '/api/stock/export'
-  }
+    window.location.href = '/api/stock/export';
+  };
 
-  const handleBulkArchive = async () => {
-    if (selectedIds.length === 0) return
-    setIsBulkActioning(true)
+  // Bulk Status Update
+  const handleExecuteBulkStatus = async () => {
+    if (selectedIds.length === 0) return;
+    setIsBulkActioning(true);
     try {
-      for (const id of selectedIds) {
-        await fetch(`/api/vehicles/${id}`, {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ status: 'archived' }),
-        })
-      }
-      setVehicles(prev => prev.map(v => selectedIds.includes(v.id) ? { ...v, status: 'archived' } : v))
-      setSelectedIds([])
-      toast.success(`${selectedIds.length} vehicles archived`)
-    } catch {
-      toast.error('Failed to update vehicles')
+      const res = await fetch('/api/stock/bulk', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'status_change',
+          vehicleIds: selectedIds,
+          newStatus: bulkTargetStatus,
+        }),
+      });
+
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || 'Failed to update status');
+
+      setVehicles((prev) =>
+        prev.map((v) =>
+          selectedIds.includes(v.id) ? { ...v, status: bulkTargetStatus } : v
+        )
+      );
+      toast.success(`Updated ${selectedIds.length} vehicles to ${bulkTargetStatus}`);
+      setShowStatusModal(false);
+      setSelectedIds([]);
+    } catch (err: any) {
+      toast.error(err.message || 'Bulk status update failed');
     } finally {
-      setIsBulkActioning(false)
+      setIsBulkActioning(false);
     }
-  }
+  };
+
+  // Bulk Price Adjustment
+  const handleExecuteBulkPrice = async () => {
+    if (selectedIds.length === 0) return;
+    setIsBulkActioning(true);
+    try {
+      const res = await fetch('/api/stock/bulk', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'price_adjust',
+          vehicleIds: selectedIds,
+          adjustmentType: priceAdjType,
+          amount: priceAdjAmount,
+        }),
+      });
+
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || 'Failed to adjust prices');
+
+      setVehicles((prev) =>
+        prev.map((v) => {
+          if (!selectedIds.includes(v.id)) return v;
+          const oldPrice = Number(v.asking_price || 0);
+          const newPrice = applyBulkPriceAdjustment(oldPrice, priceAdjType, priceAdjAmount);
+          return { ...v, asking_price: newPrice, forecourt_price: newPrice };
+        })
+      );
+
+      toast.success(`Adjusted prices for ${selectedIds.length} vehicles (${priceAdjType === 'percent' ? `${priceAdjAmount}%` : `£${priceAdjAmount}`})`);
+      setShowPriceModal(false);
+      setSelectedIds([]);
+    } catch (err: any) {
+      toast.error(err.message || 'Bulk price adjustment failed');
+    } finally {
+      setIsBulkActioning(false);
+    }
+  };
+
+  // Save Filter Preset
+  const handleSavePreset = async () => {
+    if (!newPresetName.trim()) return;
+    try {
+      const filters = {
+        statusTab,
+        selectedMake,
+        selectedPriceBand,
+        selectedAgeBand,
+        sortBy,
+      };
+
+      const res = await fetch('/api/stock/presets', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: newPresetName.trim(),
+          filters,
+        }),
+      });
+
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || 'Failed to save preset');
+
+      setPresets((prev) => [json.preset, ...prev]);
+      toast.success(`Filter preset "${newPresetName}" saved`);
+      setShowSavePresetModal(false);
+      setNewPresetName('');
+    } catch (err: any) {
+      toast.error(err.message || 'Error saving preset');
+    }
+  };
+
+  const handleApplyPreset = (preset: any) => {
+    const f = preset.filters || {};
+    if (f.statusTab) setStatusTab(f.statusTab);
+    if (f.selectedMake) setSelectedMake(f.selectedMake);
+    if (f.selectedPriceBand) setSelectedPriceBand(f.selectedPriceBand);
+    if (f.selectedAgeBand) setSelectedAgeBand(f.selectedAgeBand);
+    if (f.sortBy) setSortBy(f.sortBy);
+    toast.info(`Applied filter preset: ${preset.name}`);
+  };
+
+  const handleDeletePreset = async (id: string, name: string) => {
+    try {
+      const res = await fetch(`/api/stock/presets?id=${id}`, { method: 'DELETE' });
+      if (!res.ok) throw new Error('Failed to delete preset');
+      setPresets((prev) => prev.filter((p) => p.id !== id));
+      toast.success(`Deleted preset "${name}"`);
+    } catch (err: any) {
+      toast.error(err.message);
+    }
+  };
+
+  // Scroll filmstrip
+  const scrollFilmstrip = (direction: 'left' | 'right') => {
+    if (filmstripScrollRef.current) {
+      const offset = direction === 'left' ? -320 : 320;
+      filmstripScrollRef.current.scrollBy({ left: offset, behavior: 'smooth' });
+    }
+  };
+
+  // Resolve thumbnail
+  const getThumbnail = (v: VehicleRecord) => {
+    const primary = v.vehicle_images?.find((img) => img.is_primary)?.url || v.vehicle_images?.[0]?.url;
+    if (primary) return primary;
+    if (v.photos && v.photos.length > 0) return v.photos[0];
+    return null;
+  };
 
   return (
-    <div className="flex-1 flex flex-col bg-void overflow-y-auto min-h-screen">
+    <div className="w-full flex flex-col space-y-6 pb-20">
       
-      {/* Top Header & Actions */}
-      <div className="bg-carbon border-b border-steel px-6 py-6">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div>
-            <div className="flex items-center gap-3">
-              <h1 className="font-syne font-bold text-[28px] text-cream tracking-tight">Stockbook</h1>
-              <span className="font-mono text-[12px] px-2.5 py-0.5 bg-asphalt border border-steel rounded-[2px] text-blue font-bold">
-                {kpis.totalRetailUnits} UNITS
-              </span>
-            </div>
-            <p className="font-inter text-sm text-silver mt-1">
-              Central vehicle operations, acquisition costs, preparation, and retail margins.
-            </p>
-          </div>
-
+      {/* ── HEADER & COMMERCIAL METRICS ── */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-border pb-5">
+        <div>
           <div className="flex items-center gap-3">
-            <Button variant="outline" onClick={handleExportCSV} className="gap-2">
-              <Download size={14} /> EXPORT CSV
-            </Button>
-            <Button asChild className="gap-2">
-              <Link href="/stock/add">
-                <Plus size={16} /> ADD VEHICLE
-              </Link>
-            </Button>
+            <h1 className="text-h2 font-bold text-text-primary tracking-tight">Stockbook Inventory</h1>
+            <span className="font-mono text-caption px-2.5 py-0.5 rounded-full bg-primary/10 border border-primary/30 text-primary font-bold">
+              {kpis.totalRetailUnits} ACTIVE UNITS
+            </span>
           </div>
+          <p className="text-body-sm text-text-secondary mt-1">
+            Centralized vehicle fleet operations, reconditioning checklists, and commercial margins.
+          </p>
         </div>
 
-        {/* Real KPI Metrics Cards */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-7 gap-3 mt-6">
-          <div className="bg-asphalt/70 border border-steel p-3.5 rounded-[2px]">
-            <p className="font-mono text-[10px] text-pewter uppercase tracking-wider">Retail Stock</p>
-            <p className="font-mono text-[20px] font-bold text-cream mt-1">{kpis.totalRetailUnits}</p>
-            <p className="font-mono text-[10px] text-silver mt-0.5">Active Forecourt</p>
-          </div>
-
-          <div className="bg-asphalt/70 border border-steel p-3.5 rounded-[2px]">
-            <p className="font-mono text-[10px] text-pewter uppercase tracking-wider">Stock Value</p>
-            <p className="font-mono text-[20px] font-bold text-cream mt-1">{formatCurrency(kpis.totalStockValue)}</p>
-            <p className="font-mono text-[10px] text-silver mt-0.5">Total Invested Cost</p>
-          </div>
-
-          <div className="bg-asphalt/70 border border-steel p-3.5 rounded-[2px]">
-            <p className="font-mono text-[10px] text-pewter uppercase tracking-wider">Potential Gross</p>
-            <p className="font-mono text-[20px] font-bold text-positive mt-1">{formatCurrency(kpis.potentialGrossMargin)}</p>
-            <p className="font-mono text-[10px] text-silver mt-0.5">Avg {formatCurrency(kpis.averageGrossMargin)}/unit</p>
-          </div>
-
-          <div className="bg-asphalt/70 border border-steel p-3.5 rounded-[2px]">
-            <p className="font-mono text-[10px] text-pewter uppercase tracking-wider">Avg Days on Plot</p>
-            <p className="font-mono text-[20px] font-bold text-cream mt-1">{kpis.averageDaysInStock}</p>
-            <p className="font-mono text-[10px] text-silver mt-0.5">Forecourt Velocity</p>
-          </div>
-
-          <div className="bg-asphalt/70 border border-steel p-3.5 rounded-[2px]">
-            <p className="font-mono text-[10px] text-pewter uppercase tracking-wider">Stock &gt; 45 Days</p>
-            <p className={cn(
-              "font-mono text-[20px] font-bold mt-1",
-              kpis.vehiclesOver45Days > 0 ? "text-warning" : "text-cream"
-            )}>
-              {kpis.vehiclesOver45Days}
-            </p>
-            <p className="font-mono text-[10px] text-silver mt-0.5">{kpis.vehiclesOver60Days} over 60 days</p>
-          </div>
-
-          <div className="bg-asphalt/70 border border-steel p-3.5 rounded-[2px]">
-            <p className="font-mono text-[10px] text-pewter uppercase tracking-wider">In Preparation</p>
-            <p className="font-mono text-[20px] font-bold text-blue mt-1">{kpis.vehiclesInPreparation}</p>
-            <Link href="/stock/preparation" className="font-mono text-[10px] text-blue hover:underline mt-0.5 block">
-              View Prep Board →
+        <div className="flex items-center gap-2.5">
+          <Button variant="outline" size="sm" onClick={handleExportCSV} className="gap-2 text-caption font-semibold">
+            <Download className="w-3.5 h-3.5" /> EXPORT CSV
+          </Button>
+          <Button asChild size="sm" className="gap-2 text-caption font-semibold bg-primary hover:bg-primary-dim text-white shadow-glow-primary">
+            <Link href="/stock/add">
+              <Plus className="w-4 h-4" /> ADD VEHICLE
             </Link>
-          </div>
-
-          <div className="bg-asphalt/70 border border-steel p-3.5 rounded-[2px]">
-            <p className="font-mono text-[10px] text-pewter uppercase tracking-wider">Reserved</p>
-            <p className="font-mono text-[20px] font-bold text-cream mt-1">{kpis.vehiclesReserved}</p>
-            <p className="font-mono text-[10px] text-silver mt-0.5">Pending Handover</p>
-          </div>
-        </div>
-
-        {/* Status Tab Navigation */}
-        <div className="flex gap-2 overflow-x-auto border-b border-steel mt-6 pt-2">
-          {STATUS_TABS.map(tab => (
-            <button
-              key={tab.id}
-              onClick={() => setStatusTab(tab.id)}
-              className={cn(
-                "font-mono text-[11px] uppercase tracking-wider pb-3 px-3 border-b-2 whitespace-nowrap transition-colors",
-                statusTab === tab.id
-                  ? "text-cream border-blue font-bold"
-                  : "text-pewter border-transparent hover:text-silver"
-              )}
-            >
-              {tab.label}
-            </button>
-          ))}
+          </Button>
         </div>
       </div>
 
-      {/* Filter & Controls Bar */}
-      <div className="bg-carbon/60 border-b border-steel px-6 py-3 flex flex-wrap items-center justify-between gap-4 sticky top-0 z-20 backdrop-blur-md">
-        <div className="flex items-center gap-3 flex-1 min-w-[280px] max-w-md">
-          <div className="relative w-full">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-pewter" size={15} />
-            <Input
-              placeholder="Search registration, VIN, make, model..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="pl-9 h-9 text-[13px] bg-asphalt/80"
-            />
+      {/* ── PHASE 1 FILMSTRIP PATTERN (Top Featured Stock) ── */}
+      {filmstripUnits.length > 0 && (
+        <section className="w-full bg-surface border border-border rounded-2xl p-4 sm:p-5 space-y-3.5 shadow-xs">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Car className="w-4 h-4 text-primary" />
+              <h3 className="text-caption font-mono uppercase font-bold tracking-wider text-text-primary">
+                Featured & Priority Units ({filmstripUnits.length})
+              </h3>
+            </div>
+            <div className="flex items-center gap-1">
+              <button
+                onClick={() => scrollFilmstrip('left')}
+                className="p-1 rounded-lg border border-border bg-surface-raised text-text-secondary hover:text-text-primary hover:border-primary/40 focus-visible:ring-2 focus-visible:ring-primary"
+                aria-label="Scroll left"
+              >
+                <ChevronLeft className="w-4 h-4" />
+              </button>
+              <button
+                onClick={() => scrollFilmstrip('right')}
+                className="p-1 rounded-lg border border-border bg-surface-raised text-text-secondary hover:text-text-primary hover:border-primary/40 focus-visible:ring-2 focus-visible:ring-primary"
+                aria-label="Scroll right"
+              >
+                <ChevronRight className="w-4 h-4" />
+              </button>
+            </div>
           </div>
-        </div>
 
-        <div className="flex items-center gap-3 flex-wrap">
-          {/* Location Filter */}
-          {locations.length > 0 && (
-            <select
-              value={selectedLocation}
-              onChange={(e) => setSelectedLocation(e.target.value)}
-              className="h-9 bg-asphalt border border-steel rounded-[2px] px-3 font-mono text-[12px] text-cream focus:border-blue"
-            >
-              <option value="all">All Locations</option>
-              {locations.map(loc => (
-                <option key={loc.id} value={loc.id}>{loc.name}</option>
-              ))}
-            </select>
-          )}
-
-          {/* Sort By */}
-          <select
-            value={sortBy}
-            onChange={(e) => setSortBy(e.target.value as any)}
-            className="h-9 bg-asphalt border border-steel rounded-[2px] px-3 font-mono text-[12px] text-cream focus:border-blue"
+          <div
+            ref={filmstripScrollRef}
+            className="flex items-center gap-3.5 overflow-x-auto pb-2 pt-1 scroll-smooth no-scrollbar"
+            role="list"
           >
-            <option value="newest">Recently Added</option>
-            <option value="oldest">Oldest Added</option>
-            <option value="price_desc">Price (High to Low)</option>
-            <option value="price_asc">Price (Low to High)</option>
-            <option value="margin_desc">Highest Margin</option>
-            <option value="days_desc">Longest in Stock</option>
-          </select>
+            {filmstripUnits.map((v) => {
+              const isSelected = activeFilmstripId === v.id;
+              const days = calculateDaysInStock(v.purchase_date || v.created_at);
+              const severity = getAgingSeverity(days);
+              const thumb = getThumbnail(v);
 
-          {/* View Toggle */}
-          <div className="flex items-center bg-asphalt border border-steel rounded-[2px] p-0.5">
+              return (
+                <div
+                  key={v.id}
+                  onClick={() => setActiveFilmstripId(isSelected ? null : v.id)}
+                  tabIndex={0}
+                  className={cn(
+                    'w-60 sm:w-64 shrink-0 rounded-xl border p-2.5 cursor-pointer transition-all duration-200 outline-hidden',
+                    'focus-visible:ring-2 focus-visible:ring-primary',
+                    isSelected
+                      ? 'bg-surface-raised border-primary shadow-glow-primary -translate-y-1 scale-102 z-10'
+                      : 'bg-surface border-border hover:border-primary/40 hover:bg-surface-raised/60'
+                  )}
+                >
+                  <div className="w-full h-24 rounded-lg bg-surface-raised relative overflow-hidden mb-2 border border-border">
+                    {thumb ? (
+                      <img src={thumb} alt={v.make} className="w-full h-full object-cover" loading="lazy" />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center text-text-muted">
+                        <Car className="w-6 h-6 opacity-30 text-primary" />
+                      </div>
+                    )}
+                    <span className="absolute top-1.5 left-1.5 font-mono text-[9px] font-black tracking-wider bg-[#F5B400] text-black px-1.5 py-0.5 rounded-xs border border-black/30 uppercase">
+                      {v.registration || v.vrm}
+                    </span>
+                    <span className={cn(
+                      'absolute top-1.5 right-1.5 text-[8px] font-mono font-bold uppercase px-1.5 py-0.5 rounded-full border backdrop-blur-md',
+                      severity === 'danger' && 'bg-status-danger/80 text-white border-status-danger',
+                      severity === 'warning' && 'bg-status-warning/80 text-black border-status-warning',
+                      severity === 'info' && 'bg-primary/80 text-white border-primary',
+                      severity === 'ok' && 'bg-black/60 text-text-secondary border-border'
+                    )}>
+                      {days}d
+                    </span>
+                  </div>
+
+                  <div className="flex items-start justify-between gap-1.5">
+                    <div className="truncate">
+                      <div className="text-body-sm font-bold text-text-primary truncate">{v.make} {v.model}</div>
+                      <div className="text-caption text-text-secondary truncate">{v.variant || v.derivative || `${v.year}`}</div>
+                    </div>
+                    <span className="text-caption font-mono font-bold text-text-primary tabular-nums shrink-0">
+                      {v.asking_price ? formatCurrency(v.asking_price) : '£POA'}
+                    </span>
+                  </div>
+
+                  <div className="mt-2 pt-1.5 border-t border-border flex items-center justify-between text-[11px]">
+                    <span className="text-text-muted capitalize">{v.status.replace(/_/g, ' ')}</span>
+                    <Link
+                      href={`/stock/${v.id}`}
+                      className="text-primary hover:underline font-semibold flex items-center gap-0.5"
+                    >
+                      <span>Hub</span>
+                      <ArrowRight className="w-3 h-3" />
+                    </Link>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </section>
+      )}
+
+      {/* ── FILTER PRESETS & SEARCH BAR ── */}
+      <div className="bg-surface border border-border rounded-2xl p-4 space-y-4 shadow-xs">
+        {/* Status Tabs Bar */}
+        <div className="flex items-center justify-between flex-wrap gap-2 border-b border-border pb-3">
+          <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar">
+            {STATUS_TABS.map((tab) => {
+              const isActive = statusTab === tab.id;
+              return (
+                <button
+                  key={tab.id}
+                  onClick={() => setStatusTab(tab.id)}
+                  className={cn(
+                    'px-3 py-1.5 rounded-lg text-caption font-semibold transition-colors shrink-0 outline-hidden',
+                    'focus-visible:ring-2 focus-visible:ring-primary',
+                    isActive 
+                      ? 'bg-primary text-white font-bold shadow-glow-primary' 
+                      : 'text-text-secondary hover:text-text-primary hover:bg-surface-raised'
+                  )}
+                >
+                  {tab.label}
+                </button>
+              );
+            })}
+          </div>
+
+          {/* View Mode Toggle */}
+          <div className="flex items-center gap-1 bg-surface-raised p-1 rounded-lg border border-border">
             <button
               onClick={() => setViewMode('table')}
               className={cn(
-                "p-1.5 rounded-[2px] transition-colors",
-                viewMode === 'table' ? "bg-steel text-cream" : "text-pewter hover:text-silver"
+                'p-1.5 rounded-md transition-colors',
+                viewMode === 'table' ? 'bg-primary text-white shadow-xs' : 'text-text-secondary hover:text-text-primary'
               )}
-              title="Table View (Operational)"
+              title="Table View"
             >
-              <List size={16} />
+              <List className="w-4 h-4" />
             </button>
             <button
               onClick={() => setViewMode('grid')}
               className={cn(
-                "p-1.5 rounded-[2px] transition-colors",
-                viewMode === 'grid' ? "bg-steel text-cream" : "text-pewter hover:text-silver"
+                'p-1.5 rounded-md transition-colors',
+                viewMode === 'grid' ? 'bg-primary text-white shadow-xs' : 'text-text-secondary hover:text-text-primary'
               )}
-              title="Grid View (Visual)"
+              title="Grid Card View"
             >
-              <LayoutGrid size={16} />
+              <LayoutGrid className="w-4 h-4" />
             </button>
+          </div>
+        </div>
+
+        {/* Multi-Dimensional Filters Row */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-3 items-center">
+          {/* Search Box */}
+          <div className="md:col-span-2 relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-secondary" />
+            <input
+              type="text"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search VRM, VIN, make, model..."
+              className="w-full h-9 pl-9 pr-3 rounded-lg bg-surface-raised border border-border text-body-sm text-text-primary placeholder:text-text-muted focus:outline-hidden focus-visible:ring-2 focus-visible:ring-primary"
+            />
+          </div>
+
+          {/* Make Filter */}
+          <select
+            value={selectedMake}
+            onChange={(e) => setSelectedMake(e.target.value)}
+            className="h-9 px-3 rounded-lg bg-surface-raised border border-border text-body-sm text-text-primary focus:outline-hidden focus-visible:ring-2 focus-visible:ring-primary"
+          >
+            <option value="all">All Makes ({uniqueMakes.length})</option>
+            {uniqueMakes.map((m) => (
+              <option key={m} value={m}>{m}</option>
+            ))}
+          </select>
+
+          {/* Price Band Filter */}
+          <select
+            value={selectedPriceBand}
+            onChange={(e) => setSelectedPriceBand(e.target.value)}
+            className="h-9 px-3 rounded-lg bg-surface-raised border border-border text-body-sm text-text-primary focus:outline-hidden focus-visible:ring-2 focus-visible:ring-primary"
+          >
+            {PRICE_BANDS.map((b) => (
+              <option key={b.id} value={b.id}>{b.label}</option>
+            ))}
+          </select>
+
+          {/* Ageing Band Filter */}
+          <select
+            value={selectedAgeBand}
+            onChange={(e) => setSelectedAgeBand(e.target.value)}
+            className="h-9 px-3 rounded-lg bg-surface-raised border border-border text-body-sm text-text-primary focus:outline-hidden focus-visible:ring-2 focus-visible:ring-primary"
+          >
+            {AGE_BANDS.map((b) => (
+              <option key={b.id} value={b.id}>{b.label}</option>
+            ))}
+          </select>
+        </div>
+
+        {/* Sort & Presets Toolbar */}
+        <div className="flex items-center justify-between flex-wrap gap-3 pt-2 border-t border-border/80 text-caption">
+          <div className="flex items-center gap-2">
+            <span className="text-text-muted font-medium">Sort By:</span>
+            <select
+              value={sortBy}
+              onChange={(e: any) => setSortBy(e.target.value)}
+              className="h-7 px-2 rounded-md bg-surface-raised border border-border text-caption text-text-primary focus:outline-hidden focus-visible:ring-2 focus-visible:ring-primary"
+            >
+              <option value="newest">Newest Arrival</option>
+              <option value="oldest">Oldest Arrival</option>
+              <option value="price_desc">Price: High to Low</option>
+              <option value="price_asc">Price: Low to High</option>
+              <option value="days_desc">Days in Stock: Longest</option>
+            </select>
+          </div>
+
+          {/* Presets manager */}
+          <div className="flex items-center gap-2">
+            {presets.length > 0 && (
+              <div className="flex items-center gap-1.5">
+                <span className="text-text-muted">Saved Preset:</span>
+                <div className="flex items-center gap-1">
+                  {presets.map((p) => (
+                    <div key={p.id} className="flex items-center gap-1 bg-surface-raised border border-border px-2 py-0.5 rounded-md">
+                      <button
+                        onClick={() => handleApplyPreset(p)}
+                        className="hover:text-primary font-medium transition-colors"
+                      >
+                        {p.name}
+                      </button>
+                      <button
+                        onClick={() => handleDeletePreset(p.id, p.name)}
+                        className="text-text-muted hover:text-status-danger ml-1"
+                        title="Delete preset"
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setShowSavePresetModal(true)}
+              className="h-7 px-2.5 text-caption font-semibold gap-1.5 text-primary border-primary/30 hover:bg-primary/10"
+            >
+              <Bookmark className="w-3.5 h-3.5" />
+              <span>Save Current Filters</span>
+            </Button>
           </div>
         </div>
       </div>
 
-      {/* Bulk Action Bar (when selected) */}
+      {/* ── BULK ACTIONS FLOATING TOOLBAR ── */}
       {selectedIds.length > 0 && (
-        <div className="bg-blue/10 border-b border-blue/30 px-6 py-2 flex items-center justify-between animate-in fade-in">
-          <span className="font-mono text-[12px] text-cream font-medium">
-            {selectedIds.length} VEHICLE{selectedIds.length > 1 ? 'S' : ''} SELECTED
-          </span>
+        <div className="sticky top-20 z-30 w-full bg-surface-raised border border-primary/40 rounded-xl p-3 shadow-glow-primary flex items-center justify-between flex-wrap gap-3 animate-fade-in">
           <div className="flex items-center gap-2">
-            <Button 
-              variant="outline" 
-              size="sm" 
-              onClick={handleBulkArchive} 
-              disabled={isBulkActioning}
-              className="h-8 text-[11px] font-mono"
+            <span className="w-2 h-2 rounded-full bg-primary animate-pulse" />
+            <span className="text-body-sm font-bold text-text-primary font-mono">
+              {selectedIds.length} vehicle{selectedIds.length > 1 ? 's' : ''} selected
+            </span>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => setShowStatusModal(true)}
+              className="h-8 gap-1.5 text-caption font-semibold"
             >
-              ARCHIVE SELECTED
+              <Tag className="w-3.5 h-3.5" />
+              <span>Change Status</span>
             </Button>
-            <Button 
-              variant="outline" 
-              size="sm" 
-              onClick={() => setSelectedIds([])}
-              className="h-8 text-[11px] font-mono"
+
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => setShowPriceModal(true)}
+              className="h-8 gap-1.5 text-caption font-semibold"
             >
-              DESELECT ALL
+              <Percent className="w-3.5 h-3.5 text-primary" />
+              <span>Adjust Price</span>
+            </Button>
+
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={handleExportCSV}
+              className="h-8 gap-1.5 text-caption font-semibold"
+            >
+              <Download className="w-3.5 h-3.5" />
+              <span>Export Selected</span>
+            </Button>
+
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={() => setSelectedIds([])}
+              className="h-8 text-caption text-text-muted hover:text-text-primary"
+            >
+              Cancel
             </Button>
           </div>
         </div>
       )}
 
-      {/* Stock Content View */}
-      <div className="flex-1 p-6">
-        {filteredVehicles.length === 0 ? (
-          <div className="border border-steel bg-carbon p-12 text-center rounded-[2px] max-w-xl mx-auto my-12">
-            <Car size={40} className="mx-auto text-pewter mb-4" />
-            <h3 className="font-syne font-bold text-lg text-cream mb-1">No stock matching filter</h3>
-            <p className="font-inter text-sm text-silver mb-6">
-              {search ? 'Try clearing your search query or status filter.' : 'Add your first vehicle to start building your ForecourIQ stockbook.'}
-            </p>
-            <Button asChild className="gap-2">
-              <Link href="/stock/add">
-                <Plus size={15} /> ADD NEW VEHICLE
-              </Link>
-            </Button>
-          </div>
-        ) : viewMode === 'table' ? (
-          /* Table View — Operational Standard */
-          <div className="bg-carbon border border-steel rounded-[2px] overflow-hidden">
-            <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse min-w-[1000px]">
-                <thead>
-                  <tr className="bg-asphalt border-b border-steel">
-                    <th className="py-3 px-4 w-10">
-                      <input 
-                        type="checkbox" 
-                        checked={selectedIds.length === filteredVehicles.length && filteredVehicles.length > 0}
-                        onChange={toggleSelectAll}
-                        className="rounded-[2px] bg-void border-steel"
-                      />
-                    </th>
-                    <th className="py-3 px-3 font-mono text-[10px] text-pewter uppercase tracking-wider w-14">Media</th>
-                    <th className="py-3 px-4 font-mono text-[10px] text-pewter uppercase tracking-wider">Registration</th>
-                    <th className="py-3 px-4 font-mono text-[10px] text-pewter uppercase tracking-wider">Vehicle Details</th>
-                    <th className="py-3 px-4 font-mono text-[10px] text-pewter uppercase tracking-wider text-right">Mileage</th>
-                    <th className="py-3 px-4 font-mono text-[10px] text-pewter uppercase tracking-wider text-right">Total Cost</th>
-                    <th className="py-3 px-4 font-mono text-[10px] text-pewter uppercase tracking-wider text-right">Retail Price</th>
-                    <th className="py-3 px-4 font-mono text-[10px] text-pewter uppercase tracking-wider text-right">Proj. Margin</th>
-                    <th className="py-3 px-4 font-mono text-[10px] text-pewter uppercase tracking-wider text-center">Days</th>
-                    <th className="py-3 px-4 font-mono text-[10px] text-pewter uppercase tracking-wider">Status</th>
-                    <th className="py-3 px-4 font-mono text-[10px] text-pewter uppercase tracking-wider">Advert</th>
-                    <th className="py-3 px-4 w-8"></th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filteredVehicles.map((vehicle) => {
-                    const comms = calculateCommercials(vehicle)
-                    const isSelected = selectedIds.includes(vehicle.id)
-                    const primaryPhoto = vehicle.vehicle_images?.find(img => img.is_primary)?.url || vehicle.photos?.[0]
-                    const readiness = checkAdvertisingReadiness(vehicle)
+      {/* ── VEHICLE LIST VIEW (TABLE OR GRID) ── */}
+      {filteredVehicles.length === 0 ? (
+        <div className="w-full py-16 flex flex-col items-center justify-center text-center p-6 bg-surface border border-border rounded-2xl text-text-muted">
+          <Car className="w-12 h-12 mb-3 opacity-30 text-primary" />
+          <h3 className="text-h4 text-text-primary font-bold">No vehicles match current criteria</h3>
+          <p className="text-body-sm text-text-secondary max-w-sm mt-1 mb-4">
+            Try adjusting your search terms, status filters, or price bands.
+          </p>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              setSearch('');
+              setStatusTab('all');
+              setSelectedMake('all');
+              setSelectedPriceBand('all');
+              setSelectedAgeBand('all');
+            }}
+          >
+            Reset Filters
+          </Button>
+        </div>
+      ) : viewMode === 'table' ? (
+        /* TABLE VIEW */
+        <div className="w-full bg-surface border border-border rounded-2xl overflow-hidden shadow-xs">
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-body-sm">
+              <thead className="bg-surface-raised/80 border-b border-border text-caption font-mono uppercase text-text-muted font-bold">
+                <tr>
+                  <th className="p-3.5 w-10 text-center">
+                    <input
+                      type="checkbox"
+                      checked={selectedIds.length > 0 && selectedIds.length === filteredVehicles.length}
+                      onChange={toggleSelectAll}
+                      className="rounded border-border text-primary focus:ring-primary cursor-pointer"
+                    />
+                  </th>
+                  <th className="p-3.5">Vehicle</th>
+                  <th className="p-3.5">Registration</th>
+                  <th className="p-3.5">Status</th>
+                  <th className="p-3.5">Days in Stock</th>
+                  <th className="p-3.5">Mileage</th>
+                  <th className="p-3.5">Asking Price</th>
+                  <th className="p-3.5 text-right">Action</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border/60">
+                {filteredVehicles.map((v) => {
+                  const isChecked = selectedIds.includes(v.id);
+                  const days = calculateDaysInStock(v.purchase_date || v.created_at);
+                  const severity = getAgingSeverity(days);
+                  const thumb = getThumbnail(v);
 
-                    return (
-                      <tr 
-                        key={vehicle.id}
-                        className={cn(
-                          "border-b border-steel/60 hover:bg-asphalt/60 cursor-pointer transition-colors group",
-                          isSelected && "bg-blue/5"
-                        )}
-                        onClick={() => router.push(`/stock/${vehicle.id}`)}
-                      >
-                        <td className="py-3 px-4" onClick={(e) => e.stopPropagation()}>
-                          <input 
-                            type="checkbox" 
-                            checked={isSelected}
-                            onChange={() => toggleSelectOne(vehicle.id)}
-                            className="rounded-[2px] bg-void border-steel"
-                          />
-                        </td>
-                        <td className="py-3 px-3">
-                          <div className="w-12 h-9 bg-asphalt rounded-[2px] flex items-center justify-center border border-steel overflow-hidden">
-                            {primaryPhoto ? (
-                              <img src={primaryPhoto} alt={vehicle.registration} className="w-full h-full object-cover" />
+                  return (
+                    <tr
+                      key={v.id}
+                      className={cn(
+                        'hover:bg-surface-raised/50 transition-colors group',
+                        isChecked && 'bg-primary/5'
+                      )}
+                    >
+                      <td className="p-3.5 text-center">
+                        <input
+                          type="checkbox"
+                          checked={isChecked}
+                          onChange={() => toggleSelectOne(v.id)}
+                          className="rounded border-border text-primary focus:ring-primary cursor-pointer"
+                        />
+                      </td>
+
+                      {/* Photo & Model */}
+                      <td className="p-3.5">
+                        <div className="flex items-center gap-3">
+                          <div className="w-12 h-9 rounded-md bg-surface-raised overflow-hidden border border-border shrink-0 relative">
+                            {thumb ? (
+                              <img src={thumb} alt={v.make} className="w-full h-full object-cover" loading="lazy" />
                             ) : (
-                              <ImageIcon size={14} className="text-pewter" />
+                              <div className="w-full h-full flex items-center justify-center text-text-muted">
+                                <Car className="w-4 h-4 opacity-40" />
+                              </div>
                             )}
                           </div>
-                        </td>
-                        <td className="py-3 px-4">
-                          <span className="font-mono text-[13px] font-bold text-cream bg-void border border-steel px-2 py-0.5 rounded-[2px]">
-                            {formatRegistration(vehicle.registration)}
-                          </span>
-                        </td>
-                        <td className="py-3 px-4">
-                          <p className="font-inter font-medium text-[13px] text-cream truncate max-w-[220px]">
-                            <span className="text-silver mr-1">{vehicle.year}</span>
-                            {vehicle.make} {vehicle.model}
-                          </p>
-                          <p className="font-inter text-[11px] text-silver truncate max-w-[220px]">
-                            {vehicle.variant || `${vehicle.fuel_type || ''} ${vehicle.transmission || ''}`}
-                          </p>
-                        </td>
-                        <td className="py-3 px-4 text-right font-mono text-[12px] text-silver">
-                          {vehicle.mileage.toLocaleString()} mi
-                        </td>
-                        <td className="py-3 px-4 text-right font-mono text-[12px] text-silver">
-                          {formatCurrency(comms.totalInvestedCost)}
-                        </td>
-                        <td className="py-3 px-4 text-right font-mono text-[13px] font-bold text-cream">
-                          {vehicle.asking_price > 0 ? formatCurrency(vehicle.asking_price) : <span className="text-warning text-[11px]">NOT SET</span>}
-                        </td>
-                        <td className="py-3 px-4 text-right font-mono text-[12px]">
-                          <span className={
-                            comms.projectedGrossMargin > 3000 ? "text-positive font-bold" : 
-                            comms.projectedGrossMargin > 1000 ? "text-cream" : "text-negative"
-                          }>
-                            {formatCurrency(comms.projectedGrossMargin)}
-                          </span>
-                          <span className="text-[10px] text-pewter block">
-                            ({comms.projectedMarginPercent.toFixed(1)}%)
-                          </span>
-                        </td>
-                        <td className="py-3 px-4 text-center font-mono text-[12px]">
-                          <span className={
-                            comms.daysOwned < 30 ? "text-positive" : 
-                            comms.daysOwned <= 45 ? "text-silver" : 
-                            comms.daysOwned <= 60 ? "text-warning font-bold" : "text-negative font-bold"
-                          }>
-                            {comms.daysOwned}d
-                          </span>
-                        </td>
-                        <td className="py-3 px-4">
-                          <Badge variant={
-                            vehicle.status === 'available' || vehicle.status === 'advertised' ? 'default' :
-                            vehicle.status === 'ready_for_sale' ? 'positive' :
-                            vehicle.status === 'reserved' ? 'warning' :
-                            vehicle.status === 'sold' ? 'positive' : 'secondary'
-                          } className="font-mono text-[10px] uppercase">
-                            {vehicle.status.replace(/_/g, ' ')}
-                          </Badge>
-                        </td>
-                        <td className="py-3 px-4">
-                          {readiness.isReady ? (
-                            <span className="flex items-center gap-1 font-mono text-[10px] text-positive">
-                              <CheckCircle2 size={12} /> READY
+                          <div>
+                            <Link href={`/stock/${v.id}`} className="font-bold text-text-primary hover:text-primary transition-colors block">
+                              {v.make} {v.model}
+                            </Link>
+                            <span className="text-caption text-text-secondary truncate block max-w-xs">
+                              {v.variant || v.derivative || `${v.year} · ${v.fuel_type || 'Petrol'}`}
                             </span>
-                          ) : (
-                            <span className="flex items-center gap-1 font-mono text-[10px] text-warning" title={readiness.missingItems.join(', ')}>
-                              <AlertTriangle size={12} /> INCOMPLETE
-                            </span>
-                          )}
-                        </td>
-                        <td className="py-3 px-4 text-right text-pewter group-hover:text-cream transition-colors">
-                          <ChevronRight size={15} />
-                        </td>
-                      </tr>
-                    )
-                  })}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        ) : (
-          /* Grid View — Visual Stock Presentation */
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-5">
-            {filteredVehicles.map(vehicle => {
-              const comms = calculateCommercials(vehicle)
-              const primaryPhoto = vehicle.vehicle_images?.find(img => img.is_primary)?.url || vehicle.photos?.[0]
-              const readiness = checkAdvertisingReadiness(vehicle)
+                          </div>
+                        </div>
+                      </td>
 
-              return (
-                <div
-                  key={vehicle.id}
-                  onClick={() => router.push(`/stock/${vehicle.id}`)}
-                  className="bg-carbon border border-steel hover:border-slate rounded-[2px] overflow-hidden cursor-pointer transition-all flex flex-col group"
-                >
-                  <div className="relative aspect-[16/10] bg-asphalt flex items-center justify-center overflow-hidden border-b border-steel">
-                    {primaryPhoto ? (
-                      <img src={primaryPhoto} alt={vehicle.registration} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
+                      {/* Registration Plate Badge */}
+                      <td className="p-3.5">
+                        <span className="font-mono text-[11px] font-black tracking-widest bg-[#F5B400] text-black px-2 py-0.5 rounded-xs border border-black/30 shadow-xs uppercase">
+                          {v.registration || v.vrm}
+                        </span>
+                      </td>
+
+                      {/* Status Badge */}
+                      <td className="p-3.5">
+                        <span className={cn(
+                          'text-[10px] font-mono font-bold uppercase px-2 py-0.5 rounded-full border',
+                          v.status === 'available' && 'bg-status-success/10 text-status-success border-status-success/30',
+                          v.status === 'in_prep' || v.status === 'preparation' && 'bg-status-warning/10 text-status-warning border-status-warning/30',
+                          v.status === 'reserved' && 'bg-primary/10 text-primary border-primary/30',
+                          v.status === 'sold' && 'bg-surface-raised text-text-muted border-border',
+                          (!['available', 'in_prep', 'preparation', 'reserved', 'sold'].includes(v.status)) && 'bg-surface-raised text-text-secondary border-border'
+                        )}>
+                          {v.status.replace(/_/g, ' ')}
+                        </span>
+                      </td>
+
+                      {/* Days in Stock & Escalating Color Badge */}
+                      <td className="p-3.5">
+                        <div className="flex items-center gap-1.5">
+                          <span className={cn(
+                            'text-caption font-bold font-mono px-2 py-0.5 rounded-md border tabular-nums',
+                            severity === 'danger' && 'bg-status-danger/10 text-status-danger border-status-danger/40 animate-pulse',
+                            severity === 'warning' && 'bg-status-warning/10 text-status-warning border-status-warning/40',
+                            severity === 'info' && 'bg-primary/10 text-primary border-primary/30',
+                            severity === 'ok' && 'bg-surface-raised text-text-secondary border-border'
+                          )}>
+                            {days} days
+                          </span>
+                          {severity === 'danger' && (
+                            <span className="text-[10px] font-mono uppercase text-status-danger font-bold">Aging</span>
+                          )}
+                        </div>
+                      </td>
+
+                      {/* Mileage */}
+                      <td className="p-3.5 font-mono text-caption text-text-secondary tabular-nums">
+                        {v.mileage ? `${v.mileage.toLocaleString()} mi` : '—'}
+                      </td>
+
+                      {/* Price */}
+                      <td className="p-3.5 font-mono font-bold text-text-primary tabular-nums">
+                        {v.asking_price ? formatCurrency(v.asking_price) : '£POA'}
+                      </td>
+
+                      {/* Hub Link */}
+                      <td className="p-3.5 text-right">
+                        <Link
+                          href={`/stock/${v.id}`}
+                          className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-surface-raised hover:bg-primary hover:text-white border border-border text-caption font-semibold transition-colors"
+                        >
+                          <span>Manage</span>
+                          <ArrowRight className="w-3 h-3" />
+                        </Link>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      ) : (
+        /* CARD GRID VIEW */
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+          {filteredVehicles.map((v) => {
+            const isChecked = selectedIds.includes(v.id);
+            const days = calculateDaysInStock(v.purchase_date || v.created_at);
+            const severity = getAgingSeverity(days);
+            const thumb = getThumbnail(v);
+
+            return (
+              <div
+                key={v.id}
+                className={cn(
+                  'bg-surface border rounded-xl overflow-hidden p-3 transition-all duration-200 group flex flex-col justify-between',
+                  isChecked ? 'border-primary shadow-glow-primary bg-surface-raised' : 'border-border hover:border-primary/40 hover:shadow-md'
+                )}
+              >
+                <div>
+                  {/* Photo Container */}
+                  <div className="w-full h-40 rounded-lg bg-surface-raised relative overflow-hidden mb-3 border border-border">
+                    {thumb ? (
+                      <img
+                        src={thumb}
+                        alt={v.make}
+                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                        loading="lazy"
+                      />
                     ) : (
-                      <div className="flex flex-col items-center gap-1 text-pewter">
-                        <ImageIcon size={24} />
-                        <span className="font-mono text-[10px] uppercase tracking-wider">No Image</span>
+                      <div className="w-full h-full flex items-center justify-center text-text-muted">
+                        <Car className="w-10 h-10 opacity-30 text-primary" />
                       </div>
                     )}
-                    <div className="absolute top-2 left-2">
-                      <span className="font-mono text-[11px] font-bold text-cream bg-void/90 border border-steel px-2 py-0.5 rounded-[2px]">
-                        {formatRegistration(vehicle.registration)}
-                      </span>
+
+                    {/* Reg Plate */}
+                    <span className="absolute top-2 left-2 font-mono text-[10px] font-black tracking-widest bg-[#F5B400] text-black px-2 py-0.5 rounded-xs border border-black/30 shadow-xs uppercase">
+                      {v.registration || v.vrm}
+                    </span>
+
+                    {/* Selection Checkbox */}
+                    <div className="absolute top-2 right-2 z-10 bg-black/50 backdrop-blur-md p-1 rounded-md">
+                      <input
+                        type="checkbox"
+                        checked={isChecked}
+                        onChange={() => toggleSelectOne(v.id)}
+                        className="rounded border-border text-primary focus:ring-primary cursor-pointer"
+                      />
                     </div>
-                    <div className="absolute top-2 right-2">
-                      <Badge variant={
-                        vehicle.status === 'available' || vehicle.status === 'advertised' ? 'default' :
-                        vehicle.status === 'ready_for_sale' ? 'positive' :
-                        vehicle.status === 'reserved' ? 'warning' : 'secondary'
-                      } className="font-mono text-[9px] uppercase shadow">
-                        {vehicle.status.replace(/_/g, ' ')}
-                      </Badge>
-                    </div>
+
+                    {/* Escalating Age Badge */}
+                    <span className={cn(
+                      'absolute bottom-2 right-2 text-[9px] font-mono font-bold uppercase px-2 py-0.5 rounded-full border backdrop-blur-md',
+                      severity === 'danger' && 'bg-status-danger/90 text-white border-status-danger',
+                      severity === 'warning' && 'bg-status-warning/90 text-black border-status-warning',
+                      severity === 'info' && 'bg-primary/90 text-white border-primary',
+                      severity === 'ok' && 'bg-black/70 text-text-secondary border-border'
+                    )}>
+                      {days}d in stock
+                    </span>
                   </div>
 
-                  <div className="p-4 flex-1 flex flex-col justify-between">
-                    <div>
-                      <h3 className="font-syne font-bold text-[15px] text-cream truncate">
-                        <span className="text-silver mr-1.5">{vehicle.year}</span>
-                        {vehicle.make} {vehicle.model}
-                      </h3>
-                      <p className="font-inter text-[12px] text-silver truncate mt-0.5">
-                        {vehicle.variant || `${vehicle.fuel_type || ''} ${vehicle.transmission || ''}`}
-                      </p>
-
-                      <div className="flex items-center justify-between mt-3 pt-3 border-t border-steel/60 font-mono text-[11px] text-pewter">
-                        <span>{vehicle.mileage.toLocaleString()} miles</span>
-                        <span className={comms.daysOwned > 45 ? "text-warning font-bold" : "text-silver"}>
-                          {comms.daysOwned} days
-                        </span>
-                      </div>
+                  {/* Info Header */}
+                  <div className="space-y-1 mb-3">
+                    <div className="text-body-sm font-bold text-text-primary truncate">
+                      {v.make} {v.model}
                     </div>
-
-                    <div className="mt-4 pt-3 border-t border-steel flex items-center justify-between">
-                      <div>
-                        <p className="font-mono text-[9px] text-pewter uppercase tracking-wider">Retail Price</p>
-                        <p className="font-mono text-[16px] font-bold text-cream mt-0.5">
-                          {vehicle.asking_price > 0 ? formatCurrency(vehicle.asking_price) : '£—'}
-                        </p>
-                      </div>
-                      <div className="text-right">
-                        <p className="font-mono text-[9px] text-pewter uppercase tracking-wider">Margin</p>
-                        <p className={cn(
-                          "font-mono text-[13px] font-bold mt-0.5",
-                          comms.projectedGrossMargin > 1500 ? "text-positive" : "text-cream"
-                        )}>
-                          {formatCurrency(comms.projectedGrossMargin)}
-                        </p>
-                      </div>
+                    <div className="text-caption text-text-secondary truncate">
+                      {v.variant || v.derivative || `${v.year} · ${v.fuel_type || 'Petrol'}`}
                     </div>
                   </div>
                 </div>
-              )
-            })}
+
+                {/* Pricing & Ledger Bottom Bar */}
+                <div className="pt-2.5 border-t border-border flex items-center justify-between">
+                  <div>
+                    <span className="text-[10px] font-mono uppercase text-text-muted block">Forecourt Price</span>
+                    <span className="text-h4 font-bold text-text-primary tabular-nums font-mono">
+                      {v.asking_price ? formatCurrency(v.asking_price) : '£POA'}
+                    </span>
+                  </div>
+
+                  <Link
+                    href={`/stock/${v.id}`}
+                    className="p-2 rounded-lg bg-surface-raised hover:bg-primary hover:text-white border border-border text-text-secondary transition-colors"
+                    title="Open Vehicle Hub"
+                  >
+                    <ArrowRight className="w-4 h-4" />
+                  </Link>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* ── MODAL: BULK STATUS CHANGE ── */}
+      {showStatusModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-xs animate-fade-in">
+          <div className="w-full max-w-md bg-surface-raised border border-border rounded-2xl p-6 space-y-4 shadow-2xl">
+            <div className="flex items-center justify-between border-b border-border pb-3">
+              <h3 className="text-h4 font-bold text-text-primary">Bulk Change Status</h3>
+              <button onClick={() => setShowStatusModal(false)} className="text-text-muted hover:text-text-primary">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <p className="text-body-sm text-text-secondary">
+              Update lifecycle status for <strong className="text-text-primary">{selectedIds.length}</strong> selected vehicles:
+            </p>
+
+            <div className="space-y-2">
+              <label className="text-caption font-semibold uppercase text-text-muted">Target Lifecycle Status</label>
+              <select
+                value={bulkTargetStatus}
+                onChange={(e: any) => setBulkTargetStatus(e.target.value)}
+                className="w-full h-10 px-3 rounded-lg bg-surface border border-border text-body-sm text-text-primary focus:ring-2 focus:ring-primary"
+              >
+                <option value="available">Available (Listed)</option>
+                <option value="in_prep">In Preparation</option>
+                <option value="advertised">Advertised</option>
+                <option value="reserved">Reserved</option>
+                <option value="sold">Sold</option>
+                <option value="archived">Archived</option>
+              </select>
+            </div>
+
+            <div className="pt-3 border-t border-border flex justify-end gap-2.5">
+              <Button variant="outline" size="sm" onClick={() => setShowStatusModal(false)}>
+                Cancel
+              </Button>
+              <Button
+                size="sm"
+                onClick={handleExecuteBulkStatus}
+                disabled={isBulkActioning}
+                className="bg-primary hover:bg-primary-dim text-white"
+              >
+                {isBulkActioning ? 'Updating...' : `Apply Status to ${selectedIds.length} Vehicles`}
+              </Button>
+            </div>
           </div>
-        )}
-      </div>
+        </div>
+      )}
+
+      {/* ── MODAL: BULK PRICE ADJUSTMENT ── */}
+      {showPriceModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-xs animate-fade-in">
+          <div className="w-full max-w-md bg-surface-raised border border-border rounded-2xl p-6 space-y-4 shadow-2xl">
+            <div className="flex items-center justify-between border-b border-border pb-3">
+              <h3 className="text-h4 font-bold text-text-primary">Bulk Price Adjustment</h3>
+              <button onClick={() => setShowPriceModal(false)} className="text-text-muted hover:text-text-primary">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <p className="text-body-sm text-text-secondary">
+              Apply pricing adjustment across <strong className="text-text-primary">{selectedIds.length}</strong> selected vehicles:
+            </p>
+
+            {/* Type selector */}
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => setPriceAdjType('percent')}
+                className={cn(
+                  'py-2 px-3 rounded-lg border text-caption font-bold transition-colors flex items-center justify-center gap-1.5',
+                  priceAdjType === 'percent' ? 'bg-primary text-white border-primary' : 'bg-surface border-border text-text-secondary'
+                )}
+              >
+                <Percent className="w-3.5 h-3.5" />
+                Percentage (%)
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setPriceAdjType('fixed')}
+                className={cn(
+                  'py-2 px-3 rounded-lg border text-caption font-bold transition-colors flex items-center justify-center gap-1.5',
+                  priceAdjType === 'fixed' ? 'bg-primary text-white border-primary' : 'bg-surface border-border text-text-secondary'
+                )}
+              >
+                <DollarSign className="w-3.5 h-3.5" />
+                Fixed Amount (£)
+              </button>
+            </div>
+
+            {/* Amount input */}
+            <div className="space-y-1.5">
+              <label className="text-caption font-semibold uppercase text-text-muted">
+                {priceAdjType === 'percent' ? 'Percentage Adjustment (e.g. -5 for -5%, 3 for +3%)' : 'Fixed Amount in £ (e.g. -500 or 1000)'}
+              </label>
+              <input
+                type="number"
+                value={priceAdjAmount}
+                onChange={(e) => setPriceAdjAmount(Number(e.target.value))}
+                className="w-full h-10 px-3 rounded-lg bg-surface border border-border text-body font-mono text-text-primary focus:ring-2 focus:ring-primary"
+              />
+            </div>
+
+            <div className="p-3 rounded-lg bg-surface border border-border text-caption text-text-secondary">
+              Example: A £20,000 vehicle with {priceAdjType === 'percent' ? `${priceAdjAmount}%` : `£${priceAdjAmount}`} will become{' '}
+              <strong className="text-text-primary font-mono">
+                {formatCurrency(applyBulkPriceAdjustment(20000, priceAdjType, priceAdjAmount))}
+              </strong>
+            </div>
+
+            <div className="pt-3 border-t border-border flex justify-end gap-2.5">
+              <Button variant="outline" size="sm" onClick={() => setShowPriceModal(false)}>
+                Cancel
+              </Button>
+              <Button
+                size="sm"
+                onClick={handleExecuteBulkPrice}
+                disabled={isBulkActioning || priceAdjAmount === 0}
+                className="bg-primary hover:bg-primary-dim text-white"
+              >
+                {isBulkActioning ? 'Adjusting...' : `Apply Price Change to ${selectedIds.length} Units`}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── MODAL: SAVE FILTER PRESET ── */}
+      {showSavePresetModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-xs animate-fade-in">
+          <div className="w-full max-w-md bg-surface-raised border border-border rounded-2xl p-6 space-y-4 shadow-2xl">
+            <div className="flex items-center justify-between border-b border-border pb-3">
+              <h3 className="text-h4 font-bold text-text-primary">Save Filter Preset</h3>
+              <button onClick={() => setShowSavePresetModal(false)} className="text-text-muted hover:text-text-primary">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-caption font-semibold uppercase text-text-muted">Preset Name</label>
+              <input
+                type="text"
+                value={newPresetName}
+                onChange={(e) => setNewPresetName(e.target.value)}
+                placeholder="e.g. BMW Under 45 Days"
+                className="w-full h-10 px-3 rounded-lg bg-surface border border-border text-body-sm text-text-primary focus:ring-2 focus:ring-primary"
+              />
+            </div>
+
+            <div className="pt-3 border-t border-border flex justify-end gap-2.5">
+              <Button variant="outline" size="sm" onClick={() => setShowSavePresetModal(false)}>
+                Cancel
+              </Button>
+              <Button
+                size="sm"
+                onClick={handleSavePreset}
+                disabled={!newPresetName.trim()}
+                className="bg-primary hover:bg-primary-dim text-white"
+              >
+                Save Preset
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
-  )
+  );
 }

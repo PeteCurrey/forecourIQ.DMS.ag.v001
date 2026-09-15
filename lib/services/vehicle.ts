@@ -8,7 +8,11 @@ import {
   CommercialSummary,
   calculateCommercials,
   checkAdvertisingReadiness,
-  exportToCSV
+  exportToCSV,
+  calculateDaysInStock,
+  getAgingSeverity,
+  applyBulkPriceAdjustment,
+  calculateLandedCost
 } from './vehicle-calc'
 
 export type {
@@ -20,7 +24,11 @@ export type {
 export {
   calculateCommercials,
   checkAdvertisingReadiness,
-  exportToCSV
+  exportToCSV,
+  calculateDaysInStock,
+  getAgingSeverity,
+  applyBulkPriceAdjustment,
+  calculateLandedCost
 }
 
 export interface VehicleListFilters {
@@ -367,5 +375,202 @@ export const VehicleService = {
       vehiclesReserved,
       ageingBreakdown: ageing,
     }
+  },
+
+  /**
+   * Bulk update status for multiple vehicles with audit trail.
+   */
+  async bulkUpdateStatus(
+    dealershipId: string,
+    vehicleIds: string[],
+    newStatus: VehicleLifecycleStatus,
+    userId?: string,
+    reason?: string
+  ) {
+    const supabase = await createClient()
+
+    // Fetch existing records for audit trail
+    const { data: existingVehicles, error: fetchErr } = await supabase
+      .from('vehicles')
+      .select('id, registration, status')
+      .eq('dealership_id', dealershipId)
+      .in('id', vehicleIds)
+
+    if (fetchErr) throw fetchErr
+
+    const now = new Date().toISOString()
+    const { error: updateErr } = await supabase
+      .from('vehicles')
+      .update({
+        status: newStatus,
+        status_changed_at: now,
+        status_reason: reason || `Bulk status update to ${newStatus}`,
+        updated_at: now,
+      })
+      .eq('dealership_id', dealershipId)
+      .in('id', vehicleIds)
+
+    if (updateErr) throw updateErr
+
+    // Record audit entries for each affected vehicle
+    for (const v of existingVehicles || []) {
+      await AuditService.log({
+        dealership_id: dealershipId,
+        user_id: userId,
+        action: 'vehicle.status_changed',
+        entity_type: 'vehicle',
+        entity_id: v.id,
+        before: { status: v.status },
+        after: { status: newStatus, reason },
+        source: 'web',
+      })
+    }
+
+    return { updatedCount: existingVehicles?.length || 0 }
+  },
+
+  /**
+   * Bulk update prices (percentage or fixed amount) with audit trail.
+   */
+  async bulkUpdatePrice(
+    dealershipId: string,
+    vehicleIds: string[],
+    adjustmentType: 'percent' | 'fixed',
+    amount: number,
+    userId?: string
+  ) {
+    const supabase = await createClient()
+
+    const { data: existingVehicles, error: fetchErr } = await supabase
+      .from('vehicles')
+      .select('id, registration, asking_price')
+      .eq('dealership_id', dealershipId)
+      .in('id', vehicleIds)
+
+    if (fetchErr) throw fetchErr
+
+    const now = new Date().toISOString()
+    let updatedCount = 0
+
+    for (const v of existingVehicles || []) {
+      const oldPrice = Number(v.asking_price || 0)
+      const newPrice = applyBulkPriceAdjustment(oldPrice, adjustmentType, amount)
+
+      const { error: updateErr } = await supabase
+        .from('vehicles')
+        .update({
+          asking_price: newPrice,
+          forecourt_price: newPrice,
+          updated_at: now,
+        })
+        .eq('id', v.id)
+        .eq('dealership_id', dealershipId)
+
+      if (!updateErr) {
+        updatedCount++
+        await AuditService.log({
+          dealership_id: dealershipId,
+          user_id: userId,
+          action: 'vehicle.price_changed',
+          entity_type: 'vehicle',
+          entity_id: v.id,
+          before: { asking_price: oldPrice },
+          after: { asking_price: newPrice, adjustmentType, amount },
+          source: 'web',
+        })
+      }
+    }
+
+    return { updatedCount }
+  },
+
+  /**
+   * Reconditioning prep task cost recalculation and true landed cost roll-up.
+   */
+  async recalculateReconditioningCost(dealershipId: string, vehicleId: string) {
+    const supabase = await createClient()
+
+    const { data: jobs, error: jobsErr } = await supabase
+      .from('preparation_jobs')
+      .select('actual_cost, estimated_cost, status')
+      .eq('dealership_id', dealershipId)
+      .eq('vehicle_id', vehicleId)
+      .neq('status', 'cancelled')
+
+    if (jobsErr) throw jobsErr
+
+    const totalPrep = (jobs || []).reduce((sum, j) => {
+      const cost = Number(j.actual_cost || j.estimated_cost || 0)
+      return sum + cost
+    }, 0)
+
+    const { error: updateErr } = await supabase
+      .from('vehicles')
+      .update({
+        prep_cost: totalPrep,
+        reconditioning_cost_total: totalPrep,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', vehicleId)
+      .eq('dealership_id', dealershipId)
+
+    if (updateErr) throw updateErr
+    return { reconditioningTotal: totalPrep }
+  },
+
+  /**
+   * Filter presets CRUD
+   */
+  async getFilterPresets(dealershipId: string, userId: string) {
+    const supabase = await createClient()
+    const { data, error } = await supabase
+      .from('stock_filter_presets')
+      .select('*')
+      .eq('dealership_id', dealershipId)
+      .or(`user_id.eq.${userId},is_default.eq.true`)
+      .order('created_at', { ascending: false })
+
+    if (error) {
+      console.warn('[VehicleService] Failed to load filter presets:', error.message)
+      return []
+    }
+    return data || []
+  },
+
+  async saveFilterPreset(
+    dealershipId: string,
+    userId: string,
+    name: string,
+    filters: Record<string, any>,
+    isDefault: boolean = false
+  ) {
+    const supabase = await createClient()
+    const { data, error } = await supabase
+      .from('stock_filter_presets')
+      .insert({
+        dealership_id: dealershipId,
+        user_id: userId,
+        name,
+        filters,
+        is_default: isDefault,
+      })
+      .select()
+      .single()
+
+    if (error) throw error
+    return data
+  },
+
+  async deleteFilterPreset(dealershipId: string, userId: string, presetId: string) {
+    const supabase = await createClient()
+    const { error } = await supabase
+      .from('stock_filter_presets')
+      .delete()
+      .eq('id', presetId)
+      .eq('dealership_id', dealershipId)
+      .eq('user_id', userId)
+
+    if (error) throw error
+    return { success: true }
   },
 }

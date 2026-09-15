@@ -1,8 +1,8 @@
-'use client'
+'use client';
 
-import { useState } from 'react'
-import Link from 'next/link'
-import { useRouter } from 'next/navigation'
+import { useState } from 'react';
+import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { 
   ArrowLeft, 
   Car, 
@@ -24,62 +24,42 @@ import {
   Save, 
   Inbox, 
   Layers,
-  History
-} from 'lucide-react'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Badge } from '@/components/ui/badge'
-import { formatCurrency, formatRegistration } from '@/lib/format'
-import { VehicleRecord, VehicleLifecycleStatus, calculateCommercials, checkAdvertisingReadiness } from '@/lib/services/vehicle-calc'
-import { PrepJobRecord } from '@/lib/services/preparation'
-import { format, differenceInDays } from 'date-fns'
-import { cn } from '@/lib/utils'
-import { toast } from 'sonner'
-import PhotoUploader from '@/components/stock/photo-uploader'
-
-const TABS = [
-  { id: 'overview', label: 'Overview', icon: Layers },
-  { id: 'specs', label: 'Vehicle Specs', icon: Car },
-  { id: 'acquisition', label: 'Acquisition', icon: PoundSterling },
-  { id: 'preparation', label: 'Preparation', icon: Wrench },
-  { id: 'costs', label: 'Cost Ledger', icon: PoundSterling },
-  { id: 'media', label: 'Media & Photos', icon: ImageIcon },
-  { id: 'advertising', label: 'Advertising & AI', icon: Sparkles },
-  { id: 'enquiries', label: 'Enquiries', icon: Inbox },
-  { id: 'deals', label: 'Deals', icon: FileText },
-  { id: 'documents', label: 'Documents', icon: FileText },
-  { id: 'activity', label: 'Activity Timeline', icon: History },
-]
-
-const LIFECYCLE_STATUSES: { id: VehicleLifecycleStatus; label: string }[] = [
-  { id: 'acquiring', label: 'Acquiring' },
-  { id: 'purchased', label: 'Purchased' },
-  { id: 'in_transit', label: 'In Transit' },
-  { id: 'arrived', label: 'Arrived' },
-  { id: 'inspection', label: 'Inspection' },
-  { id: 'preparation', label: 'Preparation' },
-  { id: 'photography', label: 'Photography' },
-  { id: 'ready_for_sale', label: 'Ready for Sale' },
-  { id: 'available', label: 'Available' },
-  { id: 'advertised', label: 'Advertised' },
-  { id: 'reserved', label: 'Reserved' },
-  { id: 'sold', label: 'Sold' },
-  { id: 'handover', label: 'Handover' },
-  { id: 'completed', label: 'Completed' },
-  { id: 'archived', label: 'Archived' },
-]
+  History,
+  ShieldCheck,
+  Check,
+  ChevronRight,
+  Upload,
+  ArrowRight,
+  Tag
+} from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { formatCurrency, formatRegistration } from '@/lib/format';
+import { 
+  VehicleRecord, 
+  VehicleLifecycleStatus, 
+  calculateCommercials, 
+  checkAdvertisingReadiness,
+  calculateDaysInStock,
+  getAgingSeverity,
+  calculateLandedCost
+} from '@/lib/services/vehicle-calc';
+import { DashboardShell, FilmstripItem } from '@/components/dashboard/dashboard-shell';
+import { BreathingCard } from '@/components/ui/breathing-card';
+import { format } from 'date-fns';
+import { cn } from '@/lib/utils';
+import { toast } from 'sonner';
 
 interface VehicleHubProps {
-  vehicle: VehicleRecord
-  costs: any[]
-  prepJobs: any[]
-  documents: any[]
-  statusHistory: any[]
-  priceHistory: any[]
-  leads: any[]
-  deals: any[]
-  locations: { id: string; name: string }[]
-  teamMembers: { id: string; full_name: string }[]
+  vehicle: VehicleRecord;
+  costs?: any[];
+  prepJobs?: any[];
+  documents?: any[];
+  statusHistory?: any[];
+  priceHistory?: any[];
+  leads?: any[];
+  deals?: any[];
+  locations?: { id: string; name: string }[];
+  teamMembers?: { id: string; full_name: string }[];
 }
 
 export default function VehicleHub({
@@ -92,929 +72,617 @@ export default function VehicleHub({
   leads = [],
   deals = [],
   locations = [],
-  teamMembers = []
+  teamMembers = [],
 }: VehicleHubProps) {
-  const router = useRouter()
-  const [vehicle, setVehicle] = useState<VehicleRecord>(initialVehicle)
-  const [activeTab, setActiveTab] = useState('overview')
-  const [costs, setCosts] = useState<any[]>(initialCosts)
-  const [prepJobs, setPrepJobs] = useState<PrepJobRecord[]>(initialPrepJobs)
-  
-  // Status Change
-  const [isUpdatingStatus, setIsUpdatingStatus] = useState(false)
-  const [newStatus, setNewStatus] = useState<VehicleLifecycleStatus>(vehicle.status)
-  
-  // Price Update
-  const [askingPrice, setAskingPrice] = useState(vehicle.asking_price || 0)
-  const [isSavingPrice, setIsSavingPrice] = useState(false)
+  const router = useRouter();
+  const [vehicle, setVehicle] = useState<VehicleRecord>(initialVehicle);
+  const [prepJobs, setPrepJobs] = useState<any[]>(initialPrepJobs);
+  const [activePhotoIndex, setActivePhotoIndex] = useState<number>(0);
+  const [rightPanelTab, setRightPanelTab] = useState<'prep' | 'audit' | 'leads' | 'docs'>('prep');
 
-  // AI Description Generator State
-  const [isGeneratingDesc, setIsGeneratingDesc] = useState(false)
-  const [advertHeadline, setAdvertHeadline] = useState(vehicle.advert_headline || '')
-  const [advertDescription, setAdvertDescription] = useState(vehicle.advert_description || vehicle.description || '')
-  const [isSavingAdvert, setIsSavingAdvert] = useState(false)
+  // Quick edit price state
+  const [askingPriceInput, setAskingPriceInput] = useState(
+    vehicle.asking_price || vehicle.forecourt_price || 0
+  );
+  const [isUpdatingPrice, setIsUpdatingPrice] = useState(false);
 
-  // New Prep Job Modal State
-  const [isAddingJob, setIsAddingJob] = useState(false)
-  const [jobTitle, setJobTitle] = useState('')
-  const [jobCategory, setJobCategory] = useState('mechanical')
-  const [jobEstimatedCost, setJobEstimatedCost] = useState(0)
-  const [jobSupplier, setJobSupplier] = useState('')
-  const [jobDueDate, setJobDueDate] = useState('')
+  // New prep task form modal
+  const [showAddPrepModal, setShowAddPrepModal] = useState(false);
+  const [newPrepTitle, setNewPrepTitle] = useState('');
+  const [newPrepCategory, setNewPrepCategory] = useState('mechanical');
+  const [newPrepCost, setNewPrepCost] = useState(0);
 
-  // New Cost Entry State
-  const [isAddingCost, setIsAddingCost] = useState(false)
-  const [costCategory, setCostCategory] = useState('mechanical')
-  const [costDesc, setCostDesc] = useState('')
-  const [costAmount, setCostAmount] = useState(0)
-  const [costSupplier, setCostSupplier] = useState('')
-  const [costInvoiceRef, setCostInvoiceRef] = useState('')
+  // Calculate landed cost rollup
+  const totalPrepCost = prepJobs.reduce((sum, j) => {
+    if (j.status === 'cancelled') return sum;
+    return sum + (Number(j.actual_cost) || Number(j.estimated_cost) || 0);
+  }, 0);
 
-  const comms = calculateCommercials(vehicle, costs)
-  const readiness = checkAdvertisingReadiness(vehicle)
-  const primaryPhoto = vehicle.vehicle_images?.find(img => img.is_primary)?.url || vehicle.photos?.[0]
+  const purchasePrice = Number(vehicle.purchase_price || vehicle.cost_price || 0);
+  const transportCost = Number(vehicle.transport_cost || 0);
+  const otherCosts = Number(vehicle.other_acquisition_costs || 0);
+  const trueLandedCost = calculateLandedCost(purchasePrice, totalPrepCost, transportCost, otherCosts);
 
-  // Deterministic Alerts
-  const alerts: { text: string; type: 'warning' | 'negative' | 'info' }[] = []
-  if (['inspection', 'preparation', 'photography'].includes(vehicle.status) && comms.daysOwned > 7) {
-    alerts.push({ text: `Vehicle has been in preparation pipeline for ${comms.daysOwned} days`, type: 'warning' })
-  }
-  if (!vehicle.asking_price || vehicle.asking_price <= 0) {
-    alerts.push({ text: 'No retail asking price set', type: 'negative' })
-  }
-  if (!primaryPhoto) {
-    alerts.push({ text: 'Missing vehicle photography for marketing channels', type: 'warning' })
-  }
-  if (comms.daysOwned > 45) {
-    alerts.push({ text: `Ageing stock alert: ${comms.daysOwned} days in dealership inventory`, type: 'warning' })
-  }
+  const currentAskingPrice = Number(vehicle.asking_price || vehicle.forecourt_price || 0);
+  const projectedGross = currentAskingPrice - trueLandedCost;
+  const projectedMarginPct = currentAskingPrice > 0 ? Math.round((projectedGross / currentAskingPrice) * 100) : 0;
 
-  const handleStatusChange = async (targetStatus: VehicleLifecycleStatus) => {
-    setIsUpdatingStatus(true)
-    try {
-      const res = await fetch(`/api/vehicles/${vehicle.id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: targetStatus, reason: `Status moved to ${targetStatus}` }),
-      })
-      if (!res.ok) throw new Error('Failed to update status')
-      const updated = await res.json()
-      setVehicle(prev => ({ ...prev, status: targetStatus }))
-      setNewStatus(targetStatus)
-      toast.success(`Status updated to ${targetStatus.replace(/_/g, ' ')}`)
-      router.refresh()
-    } catch {
-      toast.error('Failed to change status')
-    } finally {
-      setIsUpdatingStatus(false)
-    }
-  }
+  const daysInStock = calculateDaysInStock(vehicle.purchase_date || vehicle.created_at);
+  const agingSeverity = getAgingSeverity(daysInStock);
 
+  // Advertising readiness
+  const adReadiness = checkAdvertisingReadiness(vehicle);
+
+  // Resolve images array
+  const allImages = [
+    ...(vehicle.vehicle_images?.map((i) => i.url) || []),
+    ...(vehicle.photos || []),
+  ].filter(Boolean);
+
+  const currentHeroImage = allImages[activePhotoIndex] || allImages[0] || null;
+
+  // Handle Save Price Change
   const handleSavePrice = async () => {
-    setIsSavingPrice(true)
+    if (askingPriceInput === currentAskingPrice) return;
+    setIsUpdatingPrice(true);
     try {
       const res = await fetch(`/api/vehicles/${vehicle.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ asking_price: askingPrice, reason: 'Retail price updated' }),
-      })
-      if (!res.ok) throw new Error('Failed to update price')
-      setVehicle(prev => ({ ...prev, asking_price: askingPrice }))
-      toast.success('Retail price updated')
-      router.refresh()
-    } catch {
-      toast.error('Failed to update price')
-    } finally {
-      setIsSavingPrice(false)
-    }
-  }
+        body: JSON.stringify({ asking_price: askingPriceInput }),
+      });
+      if (!res.ok) throw new Error('Failed to update asking price');
 
-  const handleGenerateAIDescription = async () => {
-    setIsGeneratingDesc(true)
-    try {
-      const res = await fetch('/api/ai/description', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          vehicleId: vehicle.id,
-          spec: {
-            make: vehicle.make,
-            model: vehicle.model,
-            variant: vehicle.variant,
-            year: vehicle.year,
-            mileage: vehicle.mileage,
-            colour: vehicle.colour,
-            fuel_type: vehicle.fuel_type,
-            transmission: vehicle.transmission,
-            body_type: vehicle.body_type,
-            highlights: vehicle.highlights,
-          }
-        })
-      })
-      if (!res.ok) throw new Error('Failed to generate description')
-      const data = await res.json()
-      setAdvertDescription(data.description)
-      toast.success('AI description generated')
+      setVehicle((prev) => ({
+        ...prev,
+        asking_price: askingPriceInput,
+        forecourt_price: askingPriceInput,
+      }));
+      toast.success(`Forecourt price updated to ${formatCurrency(askingPriceInput)}`);
     } catch (err: any) {
-      toast.error(err.message || 'AI description generation unavailable')
+      toast.error(err.message || 'Error updating price');
     } finally {
-      setIsGeneratingDesc(false)
+      setIsUpdatingPrice(false);
     }
-  }
+  };
 
-  const handleSaveAdvert = async () => {
-    setIsSavingAdvert(true)
+  // Handle Toggle Prep Job Status
+  const handleTogglePrepJob = async (jobId: string, currentStatus: string) => {
+    const newStatus = currentStatus === 'completed' ? 'in_progress' : 'completed';
     try {
-      const res = await fetch(`/api/vehicles/${vehicle.id}`, {
+      const res = await fetch(`/api/prep-jobs`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          advert_headline: advertHeadline,
-          advert_description: advertDescription,
-          description: advertDescription,
-        })
-      })
-      if (!res.ok) throw new Error('Failed to save advert')
-      toast.success('Advert copy saved')
-    } catch {
-      toast.error('Failed to save advert')
-    } finally {
-      setIsSavingAdvert(false)
-    }
-  }
+        body: JSON.stringify({ id: jobId, status: newStatus }),
+      });
+      if (!res.ok) throw new Error('Failed to update prep task');
 
-  const handleCreatePrepJob = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!jobTitle) return
+      setPrepJobs((prev) =>
+        prev.map((j) => (j.id === jobId ? { ...j, status: newStatus } : j))
+      );
+      toast.success(`Task marked ${newStatus}`);
+    } catch (err: any) {
+      toast.error(err.message || 'Error updating prep job');
+    }
+  };
+
+  // Handle Add Prep Task
+  const handleAddPrepJob = async () => {
+    if (!newPrepTitle.trim()) return;
     try {
       const res = await fetch('/api/prep-jobs', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           vehicle_id: vehicle.id,
-          title: jobTitle,
-          category: jobCategory,
-          estimated_cost: jobEstimatedCost,
-          supplier: jobSupplier,
-          due_date: jobDueDate || null,
-        })
-      })
-      if (!res.ok) throw new Error('Failed to create prep job')
-      const created = await res.json()
-      setPrepJobs(prev => [created, ...prev])
-      setIsAddingJob(false)
-      setJobTitle('')
-      setJobEstimatedCost(0)
-      toast.success('Preparation job created')
-      router.refresh()
-    } catch {
-      toast.error('Failed to add preparation job')
+          title: newPrepTitle.trim(),
+          category: newPrepCategory,
+          estimated_cost: newPrepCost,
+          actual_cost: newPrepCost,
+          status: 'not_started',
+        }),
+      });
+
+      if (!res.ok) throw new Error('Failed to create prep task');
+      const json = await res.json();
+
+      setPrepJobs((prev) => [json.job, ...prev]);
+      toast.success('Reconditioning task added & cost rolled up');
+      setShowAddPrepModal(false);
+      setNewPrepTitle('');
+      setNewPrepCost(0);
+    } catch (err: any) {
+      toast.error(err.message || 'Error adding task');
     }
-  }
+  };
 
-  const handleCompletePrepJob = async (jobId: string, actualCost: number) => {
-    try {
-      const res = await fetch('/api/prep-jobs', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          jobId,
-          status: 'completed',
-          actual_cost: actualCost,
-          completed_date: new Date().toISOString().split('T')[0]
-        })
-      })
-      if (!res.ok) throw new Error('Failed to complete job')
-      const updated = await res.json()
-      setPrepJobs(prev => prev.map(j => j.id === jobId ? updated : j))
-      toast.success('Job marked completed and costs updated')
-      router.refresh()
-    } catch {
-      toast.error('Failed to complete job')
-    }
-  }
+  // ── ZONE 1: LEFT DETAIL PANEL (Spec & Commercial Ledger) ──
+  const leftPanelContent = (
+    <div className="space-y-4 text-body-sm">
+      {/* Vehicle Identity */}
+      <div className="border-b border-border pb-3">
+        <span className="font-mono text-xs font-black tracking-widest bg-[#F5B400] text-black px-2 py-0.5 rounded-xs border border-black/30 uppercase inline-block mb-1.5 shadow-xs">
+          {vehicle.registration || vehicle.vrm}
+        </span>
+        <h2 className="text-h4 font-bold text-text-primary leading-tight">
+          {vehicle.make} {vehicle.model}
+        </h2>
+        <p className="text-caption text-text-secondary mt-0.5">
+          {vehicle.variant || vehicle.derivative || `${vehicle.year}`}
+        </p>
+      </div>
 
-  return (
-    <div className="flex-1 flex flex-col bg-void overflow-y-auto min-h-screen">
-      
-      {/* Top Header */}
-      <div className="bg-carbon border-b border-steel px-6 py-5 sticky top-0 z-30 backdrop-blur-md">
-        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-          
-          <div className="flex items-center gap-4">
-            <Button asChild variant="ghost" size="sm" className="gap-2 text-pewter hover:text-cream">
-              <Link href="/stock">
-                <ArrowLeft size={16} /> STOCKBOOK
-              </Link>
-            </Button>
+      {/* Days in Stock Pill */}
+      <div className="flex items-center justify-between p-2.5 rounded-xl bg-surface-raised border border-border">
+        <span className="text-caption text-text-muted flex items-center gap-1.5 font-medium">
+          <Clock className="w-3.5 h-3.5 text-primary" />
+          Days in Stock
+        </span>
+        <span className={cn(
+          'text-caption font-mono font-bold px-2 py-0.5 rounded-md border tabular-nums',
+          agingSeverity === 'danger' && 'bg-status-danger/10 text-status-danger border-status-danger/40 animate-pulse',
+          agingSeverity === 'warning' && 'bg-status-warning/10 text-status-warning border-status-warning/40',
+          agingSeverity === 'info' && 'bg-primary/10 text-primary border-primary/30',
+          agingSeverity === 'ok' && 'bg-surface text-text-secondary border-border'
+        )}>
+          {daysInStock} days
+        </span>
+      </div>
 
-            <div className="h-6 w-px bg-steel hidden sm:block" />
+      {/* Commercial Landed Cost Ledger */}
+      <div className="space-y-2 p-3 rounded-xl bg-surface-raised border border-border">
+        <span className="text-[10px] font-mono uppercase font-bold text-text-muted tracking-wider block mb-1">
+          Commercial Landed Ledger
+        </span>
 
-            <div className="flex items-center gap-3">
-              <span className="font-mono text-[14px] font-black text-cream bg-void border border-steel px-2.5 py-1 rounded-[2px] tracking-wider">
-                {formatRegistration(vehicle.registration)}
-              </span>
-              <div>
-                <h1 className="font-syne font-bold text-xl text-cream tracking-tight truncate max-w-md">
-                  <span className="text-silver mr-1.5">{vehicle.year}</span>
-                  {vehicle.make} {vehicle.model}
-                </h1>
-                <p className="font-inter text-xs text-silver truncate max-w-md">{vehicle.variant}</p>
-              </div>
-            </div>
-          </div>
-
-          {/* Quick Commercial Indicators & Status Progression */}
-          <div className="flex items-center gap-4 flex-wrap">
-            <div className="text-right pr-4 border-r border-steel">
-              <p className="font-mono text-[10px] text-pewter uppercase tracking-widest">Retail Price</p>
-              <p className="font-mono text-lg font-bold text-cream leading-tight">
-                {vehicle.asking_price > 0 ? formatCurrency(vehicle.asking_price) : '£—'}
-              </p>
-            </div>
-
-            <div className="text-right pr-4 border-r border-steel">
-              <p className="font-mono text-[10px] text-pewter uppercase tracking-widest">Gross Margin</p>
-              <p className={cn(
-                "font-mono text-lg font-bold leading-tight",
-                comms.projectedGrossMargin > 0 ? "text-positive" : "text-negative"
-              )}>
-                {formatCurrency(comms.projectedGrossMargin)}
-              </p>
-            </div>
-
-            <div className="flex items-center gap-2">
-              <select
-                value={newStatus}
-                onChange={(e) => handleStatusChange(e.target.value as VehicleLifecycleStatus)}
-                disabled={isUpdatingStatus}
-                className="h-9 bg-asphalt border border-steel rounded-[2px] px-3 font-mono text-[11px] text-cream uppercase font-bold focus:border-blue"
+        {/* Forecourt Price with Edit */}
+        <div className="flex items-center justify-between pb-2 border-b border-border/80">
+          <span className="text-caption font-semibold text-text-secondary">Retail Forecourt</span>
+          <div className="flex items-center gap-1.5">
+            <input
+              type="number"
+              value={askingPriceInput}
+              onChange={(e) => setAskingPriceInput(Number(e.target.value))}
+              className="w-24 h-7 px-2 rounded-md bg-surface border border-border text-right text-caption font-mono font-bold text-text-primary focus:ring-1 focus:ring-primary"
+            />
+            {askingPriceInput !== currentAskingPrice && (
+              <button
+                onClick={handleSavePrice}
+                disabled={isUpdatingPrice}
+                className="p-1 rounded-md bg-primary text-white text-[10px] font-bold hover:bg-primary-dim"
+                title="Save price change"
               >
-                {LIFECYCLE_STATUSES.map(s => (
-                  <option key={s.id} value={s.id}>{s.label}</option>
-                ))}
-              </select>
-            </div>
+                <Check className="w-3 h-3" />
+              </button>
+            )}
           </div>
         </div>
 
-        {/* Tab Navigation */}
-        <div className="flex gap-2 overflow-x-auto border-b border-steel mt-6 pt-1">
-          {TABS.map(tab => {
-            const Icon = tab.icon
-            return (
-              <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
-                className={cn(
-                  "font-mono text-[11px] uppercase tracking-wider pb-3 px-3.5 border-b-2 flex items-center gap-2 whitespace-nowrap transition-colors",
-                  activeTab === tab.id
-                    ? "text-cream border-blue font-bold"
-                    : "text-pewter border-transparent hover:text-silver"
-                )}
-              >
-                <Icon size={14} />
-                {tab.label}
-              </button>
-            )
-          })}
+        {/* Cost rollups */}
+        <div className="space-y-1 text-[11px] font-mono text-text-secondary pt-1">
+          <div className="flex justify-between">
+            <span>Acquisition Cost</span>
+            <span className="text-text-primary tabular-nums">{formatCurrency(purchasePrice)}</span>
+          </div>
+          <div className="flex justify-between">
+            <span>Reconditioning Prep ({prepJobs.length} tasks)</span>
+            <span className="text-text-primary tabular-nums">{formatCurrency(totalPrepCost)}</span>
+          </div>
+          {transportCost > 0 && (
+            <div className="flex justify-between">
+              <span>Transport & Handling</span>
+              <span className="text-text-primary tabular-nums">{formatCurrency(transportCost)}</span>
+            </div>
+          )}
+          <div className="pt-1.5 border-t border-border flex justify-between font-bold text-text-primary">
+            <span>True Landed Cost</span>
+            <span className="tabular-nums">{formatCurrency(trueLandedCost)}</span>
+          </div>
+          <div className="flex justify-between font-bold text-status-success pt-0.5">
+            <span>Projected Gross Margin</span>
+            <span className="tabular-nums">
+              {formatCurrency(Math.max(0, projectedGross))} ({projectedMarginPct}%)
+            </span>
+          </div>
         </div>
       </div>
 
-      {/* Main Tab Content */}
-      <div className="p-6 max-w-[1500px] mx-auto w-full flex-1">
-        
-        {/* TAB 1: OVERVIEW */}
-        {activeTab === 'overview' && (
-          <div className="space-y-6 animate-in fade-in duration-200">
-            
-            {/* Deterministic Alerts Banner */}
-            {alerts.length > 0 && (
-              <div className="space-y-2">
-                {alerts.map((alt, idx) => (
-                  <div key={idx} className={cn(
-                    "p-3.5 border rounded-[2px] flex items-center gap-3 font-inter text-xs",
-                    alt.type === 'negative' ? "bg-negative/10 border-negative/40 text-negative font-medium" :
-                    alt.type === 'warning' ? "bg-warning/10 border-warning/40 text-warning font-medium" :
-                    "bg-blue/10 border-blue/40 text-cream"
-                  )}>
-                    <AlertTriangle size={15} />
-                    <span>{alt.text}</span>
-                  </div>
-                ))}
-              </div>
-            )}
-
-            {/* Commercial & Operational Summary Grid */}
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-              
-              {/* Commercial Economics */}
-              <div className="bg-carbon border border-steel p-6 rounded-[2px] space-y-4">
-                <h2 className="font-syne font-bold text-lg text-cream">Commercial Economics</h2>
-                
-                <div className="space-y-3 font-mono text-xs">
-                  <div className="flex justify-between text-silver">
-                    <span>Purchase Price (Hammer):</span>
-                    <span>{formatCurrency(vehicle.purchase_price)}</span>
-                  </div>
-                  <div className="flex justify-between text-silver">
-                    <span>Auction / Sourcing Fees:</span>
-                    <span>{formatCurrency(vehicle.auction_fee)}</span>
-                  </div>
-                  <div className="flex justify-between text-silver">
-                    <span>Transport / Logistics:</span>
-                    <span>{formatCurrency(vehicle.transport_cost)}</span>
-                  </div>
-                  <div className="flex justify-between text-silver">
-                    <span>Preparation Costs:</span>
-                    <span>{formatCurrency(vehicle.prep_cost)}</span>
-                  </div>
-                  {costs.length > 0 && (
-                    <div className="flex justify-between text-silver">
-                      <span>Ledger Expenses ({costs.length}):</span>
-                      <span>{formatCurrency(costs.reduce((acc, c) => acc + Number(c.amount || 0), 0))}</span>
-                    </div>
-                  )}
-                  <div className="flex justify-between text-cream font-bold pt-3 border-t border-steel">
-                    <span>Total Invested Cost:</span>
-                    <span>{formatCurrency(comms.totalInvestedCost)}</span>
-                  </div>
-                  <div className="flex justify-between text-cream font-bold">
-                    <span>Retail Asking Price:</span>
-                    <span>{formatCurrency(vehicle.asking_price)}</span>
-                  </div>
-                  <div className="flex justify-between font-bold pt-2 border-t border-steel text-sm">
-                    <span className="text-cream">Projected Gross Margin:</span>
-                    <span className={comms.projectedGrossMargin > 0 ? "text-positive" : "text-negative"}>
-                      {formatCurrency(comms.projectedGrossMargin)} ({comms.projectedMarginPercent.toFixed(1)}%)
-                    </span>
-                  </div>
-                </div>
-
-                <div className="pt-4 border-t border-steel flex items-center gap-2">
-                  <Input 
-                    type="number" 
-                    value={askingPrice} 
-                    onChange={(e) => setAskingPrice(Number(e.target.value))}
-                    className="h-9 font-mono text-sm bg-asphalt" 
-                  />
-                  <Button size="sm" onClick={handleSavePrice} disabled={isSavingPrice} className="gap-2">
-                    <Save size={14} /> UPDATE PRICE
-                  </Button>
-                </div>
-              </div>
-
-              {/* Operational & Lifecycle */}
-              <div className="bg-carbon border border-steel p-6 rounded-[2px] space-y-4">
-                <h2 className="font-syne font-bold text-lg text-cream">Operational Status</h2>
-
-                <div className="space-y-3 font-mono text-xs">
-                  <div className="flex justify-between text-silver">
-                    <span>Lifecycle State:</span>
-                    <Badge variant="outline" className="uppercase">{vehicle.status.replace(/_/g, ' ')}</Badge>
-                  </div>
-                  <div className="flex justify-between text-silver">
-                    <span>Days in Dealership:</span>
-                    <span className="text-cream font-bold">{comms.daysOwned} days</span>
-                  </div>
-                  <div className="flex justify-between text-silver">
-                    <span>Location:</span>
-                    <span className="text-cream">{vehicle.dealership_locations?.name || 'Main Forecourt'}</span>
-                  </div>
-                  <div className="flex justify-between text-silver">
-                    <span>Assigned Buyer / User:</span>
-                    <span className="text-cream">{vehicle.profiles?.full_name || 'Unassigned'}</span>
-                  </div>
-                  <div className="flex justify-between text-silver">
-                    <span>Purchase Date:</span>
-                    <span>{vehicle.purchase_date ? format(new Date(vehicle.purchase_date), 'dd MMM yyyy') : '—'}</span>
-                  </div>
-                  <div className="flex justify-between text-silver">
-                    <span>Advertising Status:</span>
-                    {readiness.isReady ? (
-                      <span className="text-positive font-bold flex items-center gap-1">
-                        <CheckCircle2 size={13} /> READY
-                      </span>
-                    ) : (
-                      <span className="text-warning font-bold flex items-center gap-1">
-                        <AlertTriangle size={13} /> INCOMPLETE
-                      </span>
-                    )}
-                  </div>
-                </div>
-
-                <div className="pt-4 border-t border-steel flex gap-2">
-                  <Button variant="outline" size="sm" asChild className="w-full">
-                    <Link href="/stock/preparation">GO TO PREP BOARD</Link>
-                  </Button>
-                </div>
-              </div>
-
-              {/* Quick Image Preview & Primary Spec */}
-              <div className="bg-carbon border border-steel p-6 rounded-[2px] space-y-4 flex flex-col justify-between">
-                <div>
-                  <h2 className="font-syne font-bold text-lg text-cream mb-3">Primary Photography</h2>
-                  <div className="aspect-[16/10] bg-asphalt rounded-[2px] border border-steel overflow-hidden flex items-center justify-center">
-                    {primaryPhoto ? (
-                      <img src={primaryPhoto} alt={vehicle.registration} className="w-full h-full object-cover" />
-                    ) : (
-                      <div className="text-center text-pewter">
-                        <ImageIcon size={36} className="mx-auto mb-1" />
-                        <span className="font-mono text-xs">No Primary Photo</span>
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                <Button variant="outline" size="sm" onClick={() => setActiveTab('media')} className="w-full gap-2">
-                  <ImageIcon size={14} /> MANAGE PHOTOS ({vehicle.vehicle_images?.length || vehicle.photos?.length || 0})
-                </Button>
-              </div>
-
-            </div>
+      {/* Technical Specifications */}
+      <div className="space-y-2 pt-1 border-t border-border">
+        <span className="text-[10px] font-mono uppercase font-bold text-text-muted tracking-wider block">
+          Key Vehicle Specifications
+        </span>
+        <div className="grid grid-cols-2 gap-2 text-caption">
+          <div className="p-2 rounded-lg bg-surface-raised border border-border">
+            <span className="text-text-muted text-[10px] block">Mileage</span>
+            <span className="font-bold text-text-primary font-mono">{vehicle.mileage ? `${vehicle.mileage.toLocaleString()} mi` : '—'}</span>
           </div>
-        )}
-
-        {/* TAB 2: VEHICLE SPECS */}
-        {activeTab === 'specs' && (
-          <div className="bg-carbon border border-steel p-6 rounded-[2px] space-y-6 animate-in fade-in duration-200">
-            <h2 className="font-syne font-bold text-lg text-cream">Technical & Condition Specifications</h2>
-            
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
-              {[
-                { label: 'REGISTRATION', value: formatRegistration(vehicle.registration) },
-                { label: 'VIN NUMBER', value: vehicle.vin || '—' },
-                { label: 'MAKE', value: vehicle.make },
-                { label: 'MODEL', value: vehicle.model },
-                { label: 'VARIANT', value: vehicle.variant || '—' },
-                { label: 'YEAR', value: vehicle.year },
-                { label: 'MILEAGE', value: `${vehicle.mileage.toLocaleString()} mi` },
-                { label: 'COLOUR', value: vehicle.colour || '—' },
-                { label: 'FUEL TYPE', value: vehicle.fuel_type || '—' },
-                { label: 'TRANSMISSION', value: vehicle.transmission || '—' },
-                { label: 'BODY STYLE', value: vehicle.body_type || '—' },
-                { label: 'DOORS', value: vehicle.doors || '—' },
-                { label: 'ENGINE SIZE', value: vehicle.engine_size || '—' },
-                { label: 'KEYS COUNT', value: vehicle.keys_count || 2 },
-                { label: 'SERVICE HISTORY', value: vehicle.service_history_type || 'Full' },
-                { label: 'HPI STATUS', value: vehicle.hpi_status || 'Clear' },
-                { label: 'MOT EXPIRY', value: vehicle.mot_expiry_date || vehicle.mot_expiry ? format(new Date(vehicle.mot_expiry_date || vehicle.mot_expiry!), 'dd MMM yyyy') : '—' },
-                { label: 'BODYWORK', value: vehicle.body_condition || 'Good' },
-                { label: 'WHEELS', value: vehicle.wheel_condition || 'Good' },
-                { label: 'TYRES', value: vehicle.tyre_condition || 'Good' },
-              ].map((item, idx) => (
-                <div key={idx} className="border-b border-steel/60 pb-3">
-                  <p className="font-mono text-[10px] text-pewter uppercase tracking-wider mb-1">{item.label}</p>
-                  <p className="font-inter font-medium text-sm text-cream">{item.value}</p>
-                </div>
-              ))}
-            </div>
+          <div className="p-2 rounded-lg bg-surface-raised border border-border">
+            <span className="text-text-muted text-[10px] block">Transmission</span>
+            <span className="font-bold text-text-primary">{vehicle.transmission || 'Manual'}</span>
           </div>
-        )}
-
-        {/* TAB 3: ACQUISITION */}
-        {activeTab === 'acquisition' && (
-          <div className="bg-carbon border border-steel p-6 rounded-[2px] space-y-6 animate-in fade-in duration-200">
-            <h2 className="font-syne font-bold text-lg text-cream">Acquisition Record</h2>
-
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              <div className="border-b border-steel/60 pb-3">
-                <p className="font-mono text-[10px] text-pewter uppercase tracking-wider mb-1">Purchase Source</p>
-                <p className="font-inter font-medium text-sm text-cream capitalize">{vehicle.purchase_source?.replace(/_/g, ' ') || 'Auction'}</p>
-              </div>
-
-              <div className="border-b border-steel/60 pb-3">
-                <p className="font-mono text-[10px] text-pewter uppercase tracking-wider mb-1">Supplier / Vendor</p>
-                <p className="font-inter font-medium text-sm text-cream">{vehicle.supplier_name || vehicle.auction_house || '—'}</p>
-              </div>
-
-              <div className="border-b border-steel/60 pb-3">
-                <p className="font-mono text-[10px] text-pewter uppercase tracking-wider mb-1">Purchase Date</p>
-                <p className="font-inter font-medium text-sm text-cream">
-                  {vehicle.purchase_date ? format(new Date(vehicle.purchase_date), 'dd MMM yyyy') : '—'}
-                </p>
-              </div>
-
-              <div className="border-b border-steel/60 pb-3">
-                <p className="font-mono text-[10px] text-pewter uppercase tracking-wider mb-1">Purchase Reference</p>
-                <p className="font-inter font-medium text-sm text-cream">{vehicle.purchase_reference || '—'}</p>
-              </div>
-
-              <div className="border-b border-steel/60 pb-3">
-                <p className="font-mono text-[10px] text-pewter uppercase tracking-wider mb-1">Hammer Price</p>
-                <p className="font-mono font-bold text-sm text-cream">{formatCurrency(vehicle.purchase_price)}</p>
-              </div>
-
-              <div className="border-b border-steel/60 pb-3">
-                <p className="font-mono text-[10px] text-pewter uppercase tracking-wider mb-1">Auction & Buyer Fees</p>
-                <p className="font-mono font-bold text-sm text-cream">{formatCurrency(vehicle.auction_fee)}</p>
-              </div>
-
-              <div className="border-b border-steel/60 pb-3">
-                <p className="font-mono text-[10px] text-pewter uppercase tracking-wider mb-1">Transport Incurred</p>
-                <p className="font-mono font-bold text-sm text-cream">{formatCurrency(vehicle.transport_cost)}</p>
-              </div>
-
-              <div className="border-b border-steel/60 pb-3">
-                <p className="font-mono text-[10px] text-pewter uppercase tracking-wider mb-1">Other Acquisition Costs</p>
-                <p className="font-mono font-bold text-sm text-cream">{formatCurrency(vehicle.other_acquisition_costs)}</p>
-              </div>
-
-              <div className="border-b border-steel/60 pb-3">
-                <p className="font-mono text-[10px] text-pewter uppercase tracking-wider mb-1">Funding Method</p>
-                <p className="font-inter font-medium text-sm text-cream">{vehicle.funding_source || 'Own Working Capital'}</p>
-              </div>
-            </div>
+          <div className="p-2 rounded-lg bg-surface-raised border border-border">
+            <span className="text-text-muted text-[10px] block">Fuel Type</span>
+            <span className="font-bold text-text-primary">{vehicle.fuel_type || 'Petrol'}</span>
           </div>
-        )}
-
-        {/* TAB 4: PREPARATION */}
-        {activeTab === 'preparation' && (
-          <div className="space-y-6 animate-in fade-in duration-200">
-            <div className="flex justify-between items-center">
-              <div>
-                <h2 className="font-syne font-bold text-xl text-cream">Preparation Management</h2>
-                <p className="font-inter text-xs text-silver mt-0.5">Workshop, bodywork, valeting and inspection jobs.</p>
-              </div>
-              <Button onClick={() => setIsAddingJob(!isAddingJob)} className="gap-2">
-                <Plus size={14} /> NEW PREP JOB
-              </Button>
-            </div>
-
-            {/* Create Job Form */}
-            {isAddingJob && (
-              <form onSubmit={handleCreatePrepJob} className="bg-carbon border border-steel p-6 rounded-[2px] space-y-4">
-                <h3 className="font-syne font-bold text-base text-cream">Create Preparation Task</h3>
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                  <div className="space-y-1 sm:col-span-2">
-                    <label className="font-mono text-[10px] text-pewter uppercase tracking-wider">Job Title *</label>
-                    <Input value={jobTitle} onChange={(e) => setJobTitle(e.target.value)} placeholder="e.g. Alloy Wheel Refurb (Front Offside)" required />
-                  </div>
-                  <div className="space-y-1">
-                    <label className="font-mono text-[10px] text-pewter uppercase tracking-wider">Category</label>
-                    <select value={jobCategory} onChange={(e) => setJobCategory(e.target.value)} className="w-full h-10 bg-asphalt border border-steel rounded-[2px] px-3 text-sm text-cream">
-                      <option value="mechanical">Mechanical</option>
-                      <option value="service">Service</option>
-                      <option value="mot">MOT</option>
-                      <option value="alloy_wheel">Alloy Wheel</option>
-                      <option value="bodywork">Bodywork / Dent</option>
-                      <option value="smart_repair">SMART Repair</option>
-                      <option value="valeting">Valet & Detail</option>
-                      <option value="photography">Photography</option>
-                      <option value="other">Other</option>
-                    </select>
-                  </div>
-                  <div className="space-y-1">
-                    <label className="font-mono text-[10px] text-pewter uppercase tracking-wider">Estimated Cost (£)</label>
-                    <Input type="number" value={jobEstimatedCost} onChange={(e) => setJobEstimatedCost(Number(e.target.value))} />
-                  </div>
-                  <div className="space-y-1">
-                    <label className="font-mono text-[10px] text-pewter uppercase tracking-wider">Supplier / Bay</label>
-                    <Input value={jobSupplier} onChange={(e) => setJobSupplier(e.target.value)} placeholder="e.g. In-house Valet Bay" />
-                  </div>
-                  <div className="space-y-1">
-                    <label className="font-mono text-[10px] text-pewter uppercase tracking-wider">Due Date</label>
-                    <Input type="date" value={jobDueDate} onChange={(e) => setJobDueDate(e.target.value)} />
-                  </div>
-                </div>
-                <div className="flex justify-end gap-2 pt-2">
-                  <Button type="button" variant="ghost" onClick={() => setIsAddingJob(false)}>Cancel</Button>
-                  <Button type="submit">CREATE JOB</Button>
-                </div>
-              </form>
-            )}
-
-            {/* Jobs List */}
-            <div className="bg-carbon border border-steel rounded-[2px] overflow-hidden">
-              <table className="w-full text-left">
-                <thead>
-                  <tr className="bg-asphalt border-b border-steel font-mono text-[10px] text-pewter uppercase tracking-wider">
-                    <th className="py-3 px-4">Task</th>
-                    <th className="py-3 px-4">Category</th>
-                    <th className="py-3 px-4">Supplier / Bay</th>
-                    <th className="py-3 px-4 text-right">Est. Cost</th>
-                    <th className="py-3 px-4 text-right">Actual Cost</th>
-                    <th className="py-3 px-4">Due Date</th>
-                    <th className="py-3 px-4">Status</th>
-                    <th className="py-3 px-4 text-right">Action</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {prepJobs.length > 0 ? prepJobs.map(job => (
-                    <tr key={job.id} className="border-b border-steel/60 hover:bg-asphalt/50">
-                      <td className="py-3.5 px-4 font-inter text-sm font-medium text-cream">{job.title}</td>
-                      <td className="py-3.5 px-4 font-mono text-xs text-silver capitalize">{job.category.replace(/_/g, ' ')}</td>
-                      <td className="py-3.5 px-4 font-inter text-xs text-silver">{job.supplier || '—'}</td>
-                      <td className="py-3.5 px-4 font-mono text-xs text-right text-silver">{formatCurrency(job.estimated_cost)}</td>
-                      <td className="py-3.5 px-4 font-mono text-xs text-right font-bold text-cream">{formatCurrency(job.actual_cost)}</td>
-                      <td className="py-3.5 px-4 font-mono text-xs text-silver">{job.due_date ? format(new Date(job.due_date), 'dd MMM yyyy') : '—'}</td>
-                      <td className="py-3.5 px-4">
-                        <Badge variant={job.status === 'completed' ? 'positive' : job.status === 'in_progress' ? 'default' : 'secondary'} className="uppercase text-[10px]">
-                          {job.status.replace(/_/g, ' ')}
-                        </Badge>
-                      </td>
-                      <td className="py-3.5 px-4 text-right">
-                        {job.status !== 'completed' && (
-                          <Button size="sm" variant="outline" onClick={() => handleCompletePrepJob(job.id, job.actual_cost || job.estimated_cost || 0)} className="text-[11px] h-7">
-                            COMPLETE
-                          </Button>
-                        )}
-                      </td>
-                    </tr>
-                  )) : (
-                    <tr>
-                      <td colSpan={8} className="p-8 text-center text-pewter font-inter text-sm">
-                        No preparation tasks scheduled for this vehicle.
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
+          <div className="p-2 rounded-lg bg-surface-raised border border-border">
+            <span className="text-text-muted text-[10px] block">Engine Size</span>
+            <span className="font-bold text-text-primary">{vehicle.engine_size || '2.0L'}</span>
           </div>
-        )}
-
-        {/* TAB 5: COSTS LEDGER */}
-        {activeTab === 'costs' && (
-          <div className="space-y-6 animate-in fade-in duration-200">
-            <div className="flex justify-between items-center">
-              <div>
-                <h2 className="font-syne font-bold text-xl text-cream">Vehicle Cost Ledger</h2>
-                <p className="font-inter text-xs text-silver mt-0.5">Granular record of all vehicle acquisition, preparation and logistics expenses.</p>
-              </div>
-              <Button onClick={() => setIsAddingCost(!isAddingCost)} className="gap-2">
-                <Plus size={14} /> LOG EXPENSE
-              </Button>
-            </div>
-
-            <div className="bg-carbon border border-steel rounded-[2px] overflow-hidden">
-              <table className="w-full text-left">
-                <thead>
-                  <tr className="bg-asphalt border-b border-steel font-mono text-[10px] text-pewter uppercase tracking-wider">
-                    <th className="py-3 px-4">Category</th>
-                    <th className="py-3 px-4">Description</th>
-                    <th className="py-3 px-4">Supplier</th>
-                    <th className="py-3 px-4">Reference</th>
-                    <th className="py-3 px-4">Incurred Date</th>
-                    <th className="py-3 px-4 text-right">Amount</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {/* Standard Acquisition Costs */}
-                  <tr className="border-b border-steel/60 bg-asphalt/20">
-                    <td className="py-3 px-4 font-mono text-xs font-bold text-blue">PURCHASE</td>
-                    <td className="py-3 px-4 font-inter text-xs text-cream">Vehicle Acquisition Hammer Price</td>
-                    <td className="py-3 px-4 font-inter text-xs text-silver">{vehicle.supplier_name || '—'}</td>
-                    <td className="py-3 px-4 font-mono text-xs text-silver">{vehicle.purchase_reference || '—'}</td>
-                    <td className="py-3 px-4 font-mono text-xs text-silver">{vehicle.purchase_date || '—'}</td>
-                    <td className="py-3 px-4 font-mono text-xs text-right font-bold text-cream">{formatCurrency(vehicle.purchase_price)}</td>
-                  </tr>
-
-                  {vehicle.auction_fee > 0 && (
-                    <tr className="border-b border-steel/60">
-                      <td className="py-3 px-4 font-mono text-xs text-silver">FEE</td>
-                      <td className="py-3 px-4 font-inter text-xs text-cream">Auction & Buyer Indorsement Fee</td>
-                      <td className="py-3 px-4 font-inter text-xs text-silver">{vehicle.supplier_name || '—'}</td>
-                      <td className="py-3 px-4 font-mono text-xs text-silver">—</td>
-                      <td className="py-3 px-4 font-mono text-xs text-silver">{vehicle.purchase_date || '—'}</td>
-                      <td className="py-3 px-4 font-mono text-xs text-right font-bold text-cream">{formatCurrency(vehicle.auction_fee)}</td>
-                    </tr>
-                  )}
-
-                  {vehicle.transport_cost > 0 && (
-                    <tr className="border-b border-steel/60">
-                      <td className="py-3 px-4 font-mono text-xs text-silver">LOGISTICS</td>
-                      <td className="py-3 px-4 font-inter text-xs text-cream">Vehicle Transport & Delivery</td>
-                      <td className="py-3 px-4 font-inter text-xs text-silver">—</td>
-                      <td className="py-3 px-4 font-mono text-xs text-silver">—</td>
-                      <td className="py-3 px-4 font-mono text-xs text-silver">{vehicle.purchase_date || '—'}</td>
-                      <td className="py-3 px-4 font-mono text-xs text-right font-bold text-cream">{formatCurrency(vehicle.transport_cost)}</td>
-                    </tr>
-                  )}
-
-                  {costs.map(c => (
-                    <tr key={c.id} className="border-b border-steel/60">
-                      <td className="py-3 px-4 font-mono text-xs text-silver uppercase">{c.category}</td>
-                      <td className="py-3 px-4 font-inter text-xs text-cream">{c.description || '—'}</td>
-                      <td className="py-3 px-4 font-inter text-xs text-silver">{c.supplier_name || '—'}</td>
-                      <td className="py-3 px-4 font-mono text-xs text-silver">{c.invoice_reference || '—'}</td>
-                      <td className="py-3 px-4 font-mono text-xs text-silver">{c.incurred_date ? format(new Date(c.incurred_date), 'dd MMM yyyy') : '—'}</td>
-                      <td className="py-3 px-4 font-mono text-xs text-right font-bold text-cream">{formatCurrency(c.amount)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-
-              <div className="p-4 bg-asphalt border-t border-steel flex justify-between items-center font-mono text-sm">
-                <span className="font-bold text-cream uppercase">Total Invested Vehicle Capital:</span>
-                <span className="text-xl font-bold text-cream">{formatCurrency(comms.totalInvestedCost)}</span>
-              </div>
-            </div>
+          <div className="p-2 rounded-lg bg-surface-raised border border-border">
+            <span className="text-text-muted text-[10px] block">MOT Expiry</span>
+            <span className="font-bold text-text-primary font-mono">{vehicle.mot_expiry ? vehicle.mot_expiry : 'Valid 12m'}</span>
           </div>
-        )}
-
-        {/* TAB 6: MEDIA & PHOTOS */}
-        {activeTab === 'media' && (
-          <div className="bg-carbon border border-steel p-6 rounded-[2px] space-y-6 animate-in fade-in duration-200">
-            <div>
-              <h2 className="font-syne font-bold text-xl text-cream">Vehicle Media & Photos</h2>
-              <p className="font-inter text-xs text-silver mt-0.5">High-resolution forecourt imagery saved directly to Supabase storage.</p>
-            </div>
-
-            <PhotoUploader vehicleId={vehicle.id} />
+          <div className="p-2 rounded-lg bg-surface-raised border border-border">
+            <span className="text-text-muted text-[10px] block">Source</span>
+            <span className="font-bold text-text-primary uppercase text-[10px] font-mono">{vehicle.source || 'Part Ex'}</span>
           </div>
-        )}
-
-        {/* TAB 7: ADVERTISING & AI */}
-        {activeTab === 'advertising' && (
-          <div className="space-y-6 animate-in fade-in duration-200 max-w-4xl">
-            {/* Advertising Readiness Checklist */}
-            <div className="bg-carbon border border-steel p-6 rounded-[2px] space-y-4">
-              <div className="flex items-center justify-between">
-                <h2 className="font-syne font-bold text-lg text-cream">Advertising Readiness</h2>
-                <Badge variant={readiness.isReady ? "positive" : "warning"} className="uppercase font-mono">
-                  {readiness.isReady ? "READY TO ADVERTISE" : "ACTION REQUIRED"}
-                </Badge>
-              </div>
-
-              {!readiness.isReady && (
-                <div className="bg-asphalt border border-steel p-4 rounded-[2px] space-y-2">
-                  <p className="font-mono text-xs text-warning uppercase font-bold">Missing Required Portal Fields:</p>
-                  <ul className="list-disc list-inside text-xs text-silver space-y-1">
-                    {readiness.missingItems.map((item, i) => <li key={i}>{item}</li>)}
-                  </ul>
-                </div>
-              )}
-            </div>
-
-            {/* AI Copy Generator */}
-            <div className="bg-carbon border border-steel p-6 rounded-[2px] space-y-5">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h3 className="font-syne font-bold text-lg text-cream flex items-center gap-2">
-                    <Sparkles className="text-blue" size={18} /> IQ Create — Vehicle Description
-                  </h3>
-                  <p className="font-inter text-xs text-silver mt-0.5">
-                    Generate factual, engaging copy from vehicle specifications using Anthropic Claude.
-                  </p>
-                </div>
-                <Button 
-                  onClick={handleGenerateAIDescription} 
-                  disabled={isGeneratingDesc}
-                  className="gap-2"
-                >
-                  {isGeneratingDesc ? <Loader2 className="animate-spin" size={14} /> : <Sparkles size={14} />}
-                  GENERATE WITH IQ CREATE
-                </Button>
-              </div>
-
-              <div className="space-y-4 pt-2">
-                <div className="space-y-1.5">
-                  <label className="font-mono text-[10px] text-pewter uppercase tracking-wider">Headline</label>
-                  <Input 
-                    value={advertHeadline} 
-                    onChange={(e) => setAdvertHeadline(e.target.value)} 
-                    placeholder="e.g. Exceptional BMW 330e M Sport Pro Saloon in Mineral Grey"
-                  />
-                </div>
-
-                <div className="space-y-1.5">
-                  <label className="font-mono text-[10px] text-pewter uppercase tracking-wider">Advert Copy</label>
-                  <textarea
-                    rows={8}
-                    value={advertDescription}
-                    onChange={(e) => setAdvertDescription(e.target.value)}
-                    className="w-full bg-asphalt border border-steel rounded-[2px] p-4 text-sm text-cream leading-relaxed focus:border-blue resize-none font-inter"
-                    placeholder="Vehicle description will appear here..."
-                  />
-                </div>
-
-                <div className="flex justify-end">
-                  <Button onClick={handleSaveAdvert} disabled={isSavingAdvert} className="gap-2">
-                    <Save size={14} /> SAVE ADVERT DETAILS
-                  </Button>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* TAB 8: ENQUIRIES */}
-        {activeTab === 'enquiries' && (
-          <div className="bg-carbon border border-steel rounded-[2px] overflow-hidden animate-in fade-in duration-200">
-            <div className="p-6 border-b border-steel flex justify-between items-center">
-              <h2 className="font-syne font-bold text-lg text-cream">Customer Enquiries & Leads</h2>
-              <Badge variant="outline">{leads.length} LEADS</Badge>
-            </div>
-            {leads.length > 0 ? (
-              <div className="divide-y divide-steel">
-                {leads.map(lead => (
-                  <Link key={lead.id} href={`/leads/${lead.id}`} className="p-4 flex items-center justify-between hover:bg-asphalt transition-colors block">
-                    <div>
-                      <p className="font-inter text-sm font-medium text-cream">{lead.first_name} {lead.last_name}</p>
-                      <p className="font-mono text-[11px] text-pewter mt-0.5">{format(new Date(lead.created_at), 'dd MMM yyyy HH:mm')}</p>
-                    </div>
-                    <Badge variant={lead.status === 'won' ? 'positive' : 'outline'}>{lead.status}</Badge>
-                  </Link>
-                ))}
-              </div>
-            ) : (
-              <div className="p-12 text-center text-pewter font-inter text-sm">
-                No customer enquiries logged against this vehicle yet.
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* TAB 9: DEALS */}
-        {activeTab === 'deals' && (
-          <div className="bg-carbon border border-steel p-6 rounded-[2px] animate-in fade-in duration-200">
-            <h2 className="font-syne font-bold text-lg text-cream mb-4">Deal Desk Proposals</h2>
-            {deals.length > 0 ? (
-              <div className="space-y-3">
-                {deals.map(d => (
-                  <div key={d.id} className="p-4 bg-asphalt border border-steel rounded-[2px] flex justify-between items-center">
-                    <div>
-                      <p className="font-mono text-sm font-bold text-cream">DEAL #{d.deal_number}</p>
-                      <p className="font-inter text-xs text-silver">Status: {d.status}</p>
-                    </div>
-                    <p className="font-mono text-base font-bold text-positive">{formatCurrency(d.sale_price)}</p>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <p className="font-inter text-sm text-pewter text-center py-8">
-                No active deal desk transactions for this vehicle.
-              </p>
-            )}
-          </div>
-        )}
-
-        {/* TAB 10: DOCUMENTS */}
-        {activeTab === 'documents' && (
-          <div className="bg-carbon border border-steel p-6 rounded-[2px] space-y-6 animate-in fade-in duration-200">
-            <div className="flex justify-between items-center">
-              <h2 className="font-syne font-bold text-lg text-cream">Vehicle Documents</h2>
-              <Button size="sm" className="gap-2"><Plus size={14} /> ATTACH DOCUMENT</Button>
-            </div>
-            {documents.length > 0 ? (
-              <div className="space-y-2">
-                {documents.map(doc => (
-                  <div key={doc.id} className="p-3 bg-asphalt border border-steel rounded-[2px] flex justify-between items-center">
-                    <div>
-                      <p className="font-inter text-sm font-medium text-cream">{doc.filename}</p>
-                      <p className="font-mono text-[10px] text-pewter uppercase">{doc.document_type}</p>
-                    </div>
-                    <Button variant="ghost" size="sm">DOWNLOAD</Button>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <div className="p-8 text-center text-pewter font-inter text-sm">
-                No compliance or purchase invoices uploaded for this vehicle.
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* TAB 11: ACTIVITY TIMELINE */}
-        {activeTab === 'activity' && (
-          <div className="bg-carbon border border-steel p-6 rounded-[2px] space-y-6 animate-in fade-in duration-200">
-            <h2 className="font-syne font-bold text-lg text-cream">Operational History & Audit Log</h2>
-
-            <div className="space-y-4">
-              {statusHistory.map((sh, i) => (
-                <div key={i} className="flex gap-4 items-start pb-4 border-b border-steel/60">
-                  <div className="w-2 h-2 rounded-full bg-blue mt-1.5 shrink-0" />
-                  <div>
-                    <p className="font-inter text-sm text-cream font-medium">
-                      Status changed to <span className="font-mono font-bold uppercase">{sh.to_status}</span>
-                    </p>
-                    <p className="font-mono text-[11px] text-pewter mt-0.5">
-                      {format(new Date(sh.created_at), 'dd MMM yyyy HH:mm')} · {sh.reason || 'Operational workflow'}
-                    </p>
-                  </div>
-                </div>
-              ))}
-
-              {priceHistory.map((ph, i) => (
-                <div key={i} className="flex gap-4 items-start pb-4 border-b border-steel/60">
-                  <div className="w-2 h-2 rounded-full bg-positive mt-1.5 shrink-0" />
-                  <div>
-                    <p className="font-inter text-sm text-cream font-medium">
-                      Retail price updated to <span className="font-mono font-bold">{formatCurrency(ph.new_price)}</span>
-                    </p>
-                    <p className="font-mono text-[11px] text-pewter mt-0.5">
-                      {format(new Date(ph.created_at), 'dd MMM yyyy HH:mm')} · {ph.reason || 'Price adjustment'}
-                    </p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
+        </div>
       </div>
     </div>
-  )
+  );
+
+  // ── ZONE 2: CENTER HERO 3D VISUAL AREA (Image Gallery & Breathing Card) ──
+  const centerHeroContent = (
+    <div className="w-full flex flex-col justify-between space-y-4">
+      {/* 3D Perspective Hero Image Container */}
+      <div className="relative w-full h-64 sm:h-80 rounded-2xl overflow-hidden bg-surface-raised border border-border/80 shadow-glass-card group flex items-center justify-center">
+        {currentHeroImage ? (
+          <img
+            src={currentHeroImage}
+            alt={`${vehicle.make} ${vehicle.model}`}
+            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700 ease-out"
+          />
+        ) : (
+          <div className="flex flex-col items-center justify-center text-text-muted gap-2">
+            <Car className="w-16 h-16 opacity-30 text-primary animate-pulse" />
+            <span className="text-caption font-mono uppercase tracking-widest text-text-muted">Awaiting Vehicle Photography</span>
+          </div>
+        )}
+
+        <div className="absolute inset-0 bg-linear-to-t from-bg-surface via-transparent to-black/30 pointer-events-none" />
+
+        {/* Floating Telemetry Badge */}
+        <div className="absolute top-3 left-3 z-10 flex items-center gap-2">
+          <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-black/70 backdrop-blur-md border border-primary/40 text-primary text-[10px] font-mono font-bold uppercase tracking-wider shadow-xs">
+            <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
+            Active Stock Unit
+          </span>
+        </div>
+
+        {/* UK Reg Plate */}
+        <div className="absolute top-3 right-3 z-10">
+          <span className="font-mono text-xs font-black tracking-widest bg-[#F5B400] text-black px-2.5 py-1 rounded-xs shadow-md border border-black/30 uppercase">
+            {vehicle.registration || vehicle.vrm}
+          </span>
+        </div>
+
+        {/* Advertising Readiness HUD */}
+        <div className="absolute bottom-3 inset-x-3 z-10 flex items-center justify-between p-2.5 rounded-xl bg-surface/85 backdrop-blur-md border border-border/80 text-caption shadow-lg">
+          <div className="flex items-center gap-2">
+            <span className={cn(
+              'w-2 h-2 rounded-full',
+              adReadiness.isReady ? 'bg-status-success' : 'bg-status-warning'
+            )} />
+            <span className="font-semibold text-text-primary">
+              {adReadiness.isReady ? 'Advertising Ready (AutoTrader / Motors)' : `${adReadiness.missingItems.length} items missing for publishing`}
+            </span>
+          </div>
+          <span className="font-mono text-caption text-text-secondary">
+            {allImages.length} Photos
+          </span>
+        </div>
+      </div>
+
+      {/* Photo Filmstrip Strip */}
+      {allImages.length > 0 && (
+        <div className="flex items-center gap-2 overflow-x-auto pb-1 no-scrollbar">
+          {allImages.map((img, idx) => (
+            <button
+              key={idx}
+              onClick={() => setActivePhotoIndex(idx)}
+              className={cn(
+                'w-16 h-12 rounded-lg overflow-hidden border shrink-0 transition-all outline-hidden',
+                activePhotoIndex === idx 
+                  ? 'border-primary shadow-glow-primary scale-105' 
+                  : 'border-border opacity-70 hover:opacity-100'
+              )}
+            >
+              <img src={img} alt={`Thumbnail ${idx + 1}`} className="w-full h-full object-cover" />
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+
+  // ── ZONE 3: RIGHT SECONDARY DETAIL PANEL (Prep Checklist & Timeline) ──
+  const rightPanelContent = (
+    <div className="space-y-3.5">
+      {/* Tab Switcher */}
+      <div className="flex items-center gap-1 border-b border-border pb-2">
+        <button
+          onClick={() => setRightPanelTab('prep')}
+          className={cn(
+            'px-2.5 py-1 rounded-lg text-caption font-semibold transition-colors',
+            rightPanelTab === 'prep' ? 'bg-primary text-white font-bold' : 'text-text-secondary hover:text-text-primary'
+          )}
+        >
+          Reconditioning ({prepJobs.length})
+        </button>
+        <button
+          onClick={() => setRightPanelTab('audit')}
+          className={cn(
+            'px-2.5 py-1 rounded-lg text-caption font-semibold transition-colors',
+            rightPanelTab === 'audit' ? 'bg-primary text-white font-bold' : 'text-text-secondary hover:text-text-primary'
+          )}
+        >
+          Audit History
+        </button>
+        <button
+          onClick={() => setRightPanelTab('leads')}
+          className={cn(
+            'px-2.5 py-1 rounded-lg text-caption font-semibold transition-colors',
+            rightPanelTab === 'leads' ? 'bg-primary text-white font-bold' : 'text-text-secondary hover:text-text-primary'
+          )}
+        >
+          Leads ({leads.length})
+        </button>
+      </div>
+
+      {/* TAB 1: RECONDITIONING PREP CHECKLIST */}
+      {rightPanelTab === 'prep' && (
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <span className="text-caption font-mono uppercase font-bold text-text-muted">
+              Prep Tasks & Landed Costs
+            </span>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => setShowAddPrepModal(true)}
+              className="h-6 px-2 text-[11px] font-semibold text-primary border-primary/30 hover:bg-primary/10 gap-1"
+            >
+              <Plus className="w-3 h-3" />
+              <span>Add Task</span>
+            </Button>
+          </div>
+
+          <div className="space-y-2 max-h-[380px] overflow-y-auto no-scrollbar">
+            {prepJobs.length === 0 ? (
+              <div className="p-4 rounded-xl bg-surface border border-border text-center text-caption text-text-muted">
+                No reconditioning tasks assigned. Click "Add Task" to record mechanical or cosmetic prep work.
+              </div>
+            ) : (
+              prepJobs.map((job) => {
+                const isComplete = job.status === 'completed';
+                const cost = Number(job.actual_cost || job.estimated_cost || 0);
+
+                return (
+                  <div
+                    key={job.id}
+                    className={cn(
+                      'p-2.5 rounded-xl border transition-colors flex items-start justify-between gap-2.5',
+                      isComplete ? 'bg-surface/50 border-border opacity-80' : 'bg-surface border-border hover:border-primary/40'
+                    )}
+                  >
+                    <div className="flex items-start gap-2">
+                      <button
+                        onClick={() => handleTogglePrepJob(job.id, job.status)}
+                        className={cn(
+                          'w-4 h-4 rounded-md border mt-0.5 flex items-center justify-center transition-colors',
+                          isComplete ? 'bg-status-success border-status-success text-white' : 'border-border hover:border-primary'
+                        )}
+                        title="Toggle task completion"
+                      >
+                        {isComplete && <Check className="w-3 h-3" />}
+                      </button>
+                      <div>
+                        <div className={cn('text-caption font-bold text-text-primary', isComplete && 'line-through text-text-muted')}>
+                          {job.title}
+                        </div>
+                        <span className="text-[10px] font-mono text-text-secondary capitalize">
+                          {job.category || 'mechanical'}
+                        </span>
+                      </div>
+                    </div>
+
+                    <span className="text-caption font-mono font-bold text-text-primary tabular-nums shrink-0">
+                      {formatCurrency(cost)}
+                    </span>
+                  </div>
+                );
+              })
+            )}
+          </div>
+
+          <div className="p-2.5 rounded-xl bg-surface border border-border flex items-center justify-between text-caption font-mono">
+            <span className="text-text-muted">Rolled-Up Prep Total:</span>
+            <span className="font-bold text-text-primary tabular-nums">{formatCurrency(totalPrepCost)}</span>
+          </div>
+        </div>
+      )}
+
+      {/* TAB 2: AUDIT TRAIL */}
+      {rightPanelTab === 'audit' && (
+        <div className="space-y-2 max-h-[380px] overflow-y-auto no-scrollbar">
+          <span className="text-caption font-mono uppercase font-bold text-text-muted block mb-1">
+            Price & Status History
+          </span>
+          {priceHistory.length === 0 && statusHistory.length === 0 ? (
+            <div className="p-4 rounded-xl bg-surface border border-border text-center text-caption text-text-muted">
+              No previous price or status changes recorded.
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {priceHistory.map((p, idx) => (
+                <div key={`p-${idx}`} className="p-2.5 rounded-xl bg-surface border border-border text-caption">
+                  <div className="flex items-center justify-between text-text-primary font-bold">
+                    <span>Price Adjusted</span>
+                    <span className="font-mono">{formatCurrency(p.new_price || p.asking_price)}</span>
+                  </div>
+                  <span className="text-[10px] font-mono text-text-muted block mt-0.5">
+                    {p.created_at ? format(new Date(p.created_at), 'd MMM yyyy HH:mm') : 'Recent'}
+                  </span>
+                </div>
+              ))}
+              {statusHistory.map((s, idx) => (
+                <div key={`s-${idx}`} className="p-2.5 rounded-xl bg-surface border border-border text-caption">
+                  <div className="flex items-center justify-between text-text-primary font-bold">
+                    <span>Status Changed</span>
+                    <span className="font-mono text-primary uppercase text-[10px]">{s.new_status}</span>
+                  </div>
+                  <span className="text-[10px] font-mono text-text-muted block mt-0.5">
+                    {s.created_at ? format(new Date(s.created_at), 'd MMM yyyy HH:mm') : 'Recent'}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* TAB 3: LEADS ON VEHICLE */}
+      {rightPanelTab === 'leads' && (
+        <div className="space-y-2 max-h-[380px] overflow-y-auto no-scrollbar">
+          <span className="text-caption font-mono uppercase font-bold text-text-muted block mb-1">
+            Active Prospective Buyers
+          </span>
+          {leads.length === 0 ? (
+            <div className="p-4 rounded-xl bg-surface border border-border text-center text-caption text-text-muted">
+              No active CRM enquiries linked to this vehicle.
+            </div>
+          ) : (
+            leads.map((l) => (
+              <div key={l.id} className="p-2.5 rounded-xl bg-surface border border-border text-caption space-y-1">
+                <div className="flex items-center justify-between font-bold text-text-primary">
+                  <span>{l.first_name} {l.last_name}</span>
+                  <span className="text-[9px] font-mono uppercase px-1.5 py-0.5 rounded bg-primary/10 text-primary border border-primary/30">
+                    {l.status}
+                  </span>
+                </div>
+                <div className="text-[11px] text-text-secondary truncate">{l.phone || l.email}</div>
+              </div>
+            ))
+          )}
+        </div>
+      )}
+    </div>
+  );
+
+  return (
+    <div className="w-full flex flex-col space-y-6 pb-20">
+      
+      {/* Back Link & Navigation Header */}
+      <div className="flex items-center justify-between border-b border-border pb-4">
+        <div className="flex items-center gap-3">
+          <Link
+            href="/stock"
+            className="flex items-center gap-1 text-caption font-semibold text-text-secondary hover:text-text-primary transition-colors"
+          >
+            <ArrowLeft className="w-4 h-4" />
+            <span>Back to Stockbook</span>
+          </Link>
+          <span className="text-text-muted">/</span>
+          <span className="text-caption font-bold text-text-primary">
+            {vehicle.make} {vehicle.model}
+          </span>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <Button
+            asChild
+            size="sm"
+            variant="outline"
+            className="gap-1.5 text-caption font-semibold"
+          >
+            <Link href={`/stock/edit/${vehicle.id}`}>
+              Edit Vehicle
+            </Link>
+          </Button>
+        </div>
+      </div>
+
+      {/* ── 3-ZONE DASHBOARD SHELL ── */}
+      <DashboardShell
+        leftPanel={leftPanelContent}
+        leftPanelTitle="Commercial Ledger"
+        leftPanelSubtitle="Vehicle Specs & Landed Costs"
+        centerHero={centerHeroContent}
+        centerHeroTitle="Vehicle Photography & Telemetry"
+        rightPanel={rightPanelContent}
+        rightPanelTitle="Operational Timeline & Tasks"
+      />
+
+      {/* ── MODAL: ADD RECONDITIONING PREP TASK ── */}
+      {showAddPrepModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-xs animate-fade-in">
+          <div className="w-full max-w-md bg-surface-raised border border-border rounded-2xl p-6 space-y-4 shadow-2xl">
+            <div className="flex items-center justify-between border-b border-border pb-3">
+              <h3 className="text-h4 font-bold text-text-primary">Add Reconditioning Task</h3>
+              <button onClick={() => setShowAddPrepModal(false)} className="text-text-muted hover:text-text-primary">
+                ×
+              </button>
+            </div>
+
+            <div className="space-y-3">
+              <div>
+                <label className="text-caption font-semibold uppercase text-text-muted block mb-1">Task Title</label>
+                <input
+                  type="text"
+                  value={newPrepTitle}
+                  onChange={(e) => setNewPrepTitle(e.target.value)}
+                  placeholder="e.g. 2x Front Pirelli Tyres & Alignment"
+                  className="w-full h-10 px-3 rounded-lg bg-surface border border-border text-body-sm text-text-primary focus:ring-2 focus:ring-primary"
+                />
+              </div>
+
+              <div>
+                <label className="text-caption font-semibold uppercase text-text-muted block mb-1">Category</label>
+                <select
+                  value={newPrepCategory}
+                  onChange={(e) => setNewPrepCategory(e.target.value)}
+                  className="w-full h-10 px-3 rounded-lg bg-surface border border-border text-body-sm text-text-primary focus:ring-2 focus:ring-primary"
+                >
+                  <option value="mechanical">Mechanical & Engine</option>
+                  <option value="tyres">Tyres & Wheels</option>
+                  <option value="bodywork">Bodywork & Paint</option>
+                  <option value="valeting">Valeting & Detailing</option>
+                  <option value="service">Full Service</option>
+                  <option value="mot">MOT Test</option>
+                  <option value="other">Other</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="text-caption font-semibold uppercase text-text-muted block mb-1">Actual Cost (£)</label>
+                <input
+                  type="number"
+                  value={newPrepCost}
+                  onChange={(e) => setNewPrepCost(Number(e.target.value))}
+                  placeholder="0.00"
+                  className="w-full h-10 px-3 rounded-lg bg-surface border border-border text-body-sm font-mono text-text-primary focus:ring-2 focus:ring-primary"
+                />
+              </div>
+            </div>
+
+            <div className="pt-3 border-t border-border flex justify-end gap-2.5">
+              <Button variant="outline" size="sm" onClick={() => setShowAddPrepModal(false)}>
+                Cancel
+              </Button>
+              <Button
+                size="sm"
+                onClick={handleAddPrepJob}
+                disabled={!newPrepTitle.trim()}
+                className="bg-primary hover:bg-primary-dim text-white"
+              >
+                Add Task & Update Landed Cost
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+    </div>
+  );
 }
