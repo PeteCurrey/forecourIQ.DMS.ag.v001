@@ -1,41 +1,208 @@
 @import "tailwindcss";
+@config "../tailwind.config.ts";
 
-:root {
-  --void: #FFFFFF;
-  --carbon: #FFFFFF;
-  --asphalt: #F8FAFC;
-  --steel: #E2E8F0;
-  --slate: #CBD5E1;
-  --blue: #0EA5E9;
-  --blue-dim: #0284C7;
-  --blue-tint: rgba(14, 165, 233, 0.08);
-  --cream: #0F172A;
-  --silver: #475569;
-  --pewter: #64748B;
-  --muted: #94A3B8;
-  --positive: #16A34A;
-  --warning: #D97706;
-  --negative: #DC2626;
-  --sidebar: #0A0C10;
+/* ==========================================================================
+   ForecourIQ DMS — Design System (Electric Blue · Dark-First)
+   Typography: Lufga -> General Sans -> Inter -> system-ui
+   ========================================================================== */
+
+/* --------------------------------------------------------------------------
+   @font-face: Self-Hosted Lufga & Fallbacks
+   -------------------------------------------------------------------------- */
+@font-face {
+  font-family: 'Lufga';
+  src: local('Lufga Regular'), local('Lufga-Regular'),
+       url('/fonts/Lufga-Regular.woff2') format('woff2'),
+       url('/fonts/Lufga-Regular.woff') format('woff');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
 }
 
+@font-face {
+  font-family: 'Lufga';
+  src: local('Lufga Medium'), local('Lufga-Medium'),
+       url('/fonts/Lufga-Medium.woff2') format('woff2'),
+       url('/fonts/Lufga-Medium.woff') format('woff');
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Lufga';
+  src: local('Lufga SemiBold'), local('Lufga-SemiBold'),
+       url('/fonts/Lufga-SemiBold.woff2') format('woff2'),
+       url('/fonts/Lufga-SemiBold.woff') format('woff');
+  font-weight: 600;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Lufga';
+  src: local('Lufga Bold'), local('Lufga-Bold'),
+       url('/fonts/Lufga-Bold.woff2') format('woff2'),
+       url('/fonts/Lufga-Bold.woff') format('woff');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'General Sans';
+  src: local('General Sans Regular'), local('GeneralSans-Regular'),
+       url('/fonts/GeneralSans-Regular.woff2') format('woff2');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'General Sans';
+  src: local('General Sans Medium'), local('GeneralSans-Medium'),
+       url('/fonts/GeneralSans-Medium.woff2') format('woff2');
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'General Sans';
+  src: local('General Sans SemiBold'), local('GeneralSans-SemiBold'),
+       url('/fonts/GeneralSans-SemiBold.woff2') format('woff2');
+  font-weight: 600;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'General Sans';
+  src: local('General Sans Bold'), local('GeneralSans-Bold'),
+       url('/fonts/GeneralSans-Bold.woff2') format('woff2');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+/* --------------------------------------------------------------------------
+   CSS Variables — Dark-First Palette
+   -------------------------------------------------------------------------- */
+:root,
 .dark {
-  --void: #07080B;
-  --carbon: #0D0F14;
-  --asphalt: #13161C;
-  --steel: #1C2029;
-  --slate: #252B37;
-  --cream: #EDE8DC;
-  --silver: #9DA8B7;
-  --pewter: #5C6478;
-  --muted: #353D4C;
-  --positive: #3DB87A;
-  --warning: #D4922A;
-  --negative: #C94040;
-  --sidebar: #0A0C10;
+  /* Primary & Accents */
+  --color-primary: #0047FF;
+  --color-primary-dim: #1E3A8A;
+  --color-primary-glow: rgba(0, 71, 255, 0.25);
+
+  /* Surfaces & Backgrounds */
+  --color-bg-canvas: #05070F;
+  --color-bg-surface: #0D1120;
+  --color-bg-surface-raised: #151A2E;
+  --color-border: rgba(255, 255, 255, 0.08);
+  --color-border-subtle: rgba(255, 255, 255, 0.04);
+
+  /* Typography Colors */
+  --color-text-primary: #FFFFFF;
+  --color-text-secondary: #9D9D9D;
+  --color-text-muted: rgba(225, 225, 224, 0.4);
+
+  /* Status Colors */
+  --color-status-success: #22C55E;
+  --color-status-warning: #F59E0B;
+  --color-status-danger: #EF4444;
+  --color-status-info: #0047FF;
+
+  /* Backward Compatibility Aliases */
+  --void: var(--color-bg-canvas);
+  --carbon: var(--color-bg-surface);
+  --asphalt: var(--color-bg-surface-raised);
+  --steel: var(--color-border);
+  --slate: rgba(255, 255, 255, 0.12);
+  --blue: var(--color-primary);
+  --blue-dim: var(--color-primary-dim);
+  --blue-tint: rgba(0, 71, 255, 0.12);
+  --cream: var(--color-text-primary);
+  --silver: var(--color-text-secondary);
+  --pewter: var(--color-text-secondary);
+  --muted: var(--color-text-muted);
+  --positive: var(--color-status-success);
+  --warning: var(--color-status-warning);
+  --negative: var(--color-status-danger);
+  --sidebar: #05070F;
 }
 
+/* --------------------------------------------------------------------------
+   CSS Variables — Light-Mode Mirror Set
+   Neutral scale: #E5E5E5 / #E1E1E0 / #9D9D9D / #000000 / #FFFFFF
+   -------------------------------------------------------------------------- */
+.light {
+  /* Primary & Accents */
+  --color-primary: #0047FF;
+  --color-primary-dim: #1E3A8A;
+  --color-primary-glow: rgba(0, 71, 255, 0.15);
+
+  /* Surfaces & Backgrounds */
+  --color-bg-canvas: #E5E5E5;
+  --color-bg-surface: #FFFFFF;
+  --color-bg-surface-raised: #E1E1E0;
+  --color-border: rgba(0, 0, 0, 0.08);
+  --color-border-subtle: rgba(0, 0, 0, 0.04);
+
+  /* Typography Colors */
+  --color-text-primary: #000000;
+  --color-text-secondary: #9D9D9D;
+  --color-text-muted: rgba(157, 157, 157, 0.6);
+
+  /* Status Colors */
+  --color-status-success: #22C55E;
+  --color-status-warning: #F59E0B;
+  --color-status-danger: #EF4444;
+  --color-status-info: #0047FF;
+
+  /* Backward Compatibility Aliases */
+  --void: var(--color-bg-canvas);
+  --carbon: var(--color-bg-surface);
+  --asphalt: #F3F4F6;
+  --steel: var(--color-border);
+  --slate: #E1E1E0;
+  --blue: var(--color-primary);
+  --blue-dim: var(--color-primary-dim);
+  --blue-tint: rgba(0, 71, 255, 0.08);
+  --cream: var(--color-text-primary);
+  --silver: var(--color-text-secondary);
+  --pewter: var(--color-text-secondary);
+  --muted: var(--color-text-muted);
+  --positive: var(--color-status-success);
+  --warning: var(--color-status-warning);
+  --negative: var(--color-status-danger);
+  --sidebar: #FFFFFF;
+}
+
+/* --------------------------------------------------------------------------
+   Tailwind v4 @theme Declarations
+   -------------------------------------------------------------------------- */
 @theme {
+  /* Colors */
+  --color-primary: var(--color-primary);
+  --color-primary-dim: var(--color-primary-dim);
+  --color-primary-glow: var(--color-primary-glow);
+  --color-bg-canvas: var(--color-bg-canvas);
+  --color-bg-surface: var(--color-bg-surface);
+  --color-bg-surface-raised: var(--color-bg-surface-raised);
+  --color-border: var(--color-border);
+  --color-border-subtle: var(--color-border-subtle);
+
+  --color-text-primary: var(--color-text-primary);
+  --color-text-secondary: var(--color-text-secondary);
+  --color-text-muted: var(--color-text-muted);
+
+  --color-status-success: var(--color-status-success);
+  --color-status-warning: var(--color-status-warning);
+  --color-status-danger: var(--color-status-danger);
+  --color-status-info: var(--color-status-info);
+
+  /* Backward compatibility tokens */
   --color-void: var(--void);
   --color-carbon: var(--carbon);
   --color-asphalt: var(--asphalt);
@@ -53,18 +220,75 @@
   --color-negative: var(--negative);
   --color-sidebar: var(--sidebar);
 
-  --font-sans: var(--font-sans), sans-serif;
+  /* Fonts */
+  --font-sans: 'Lufga', 'General Sans', 'Inter', var(--font-sans), system-ui, -apple-system, sans-serif;
+  --font-lufga: 'Lufga', 'General Sans', 'Inter', system-ui, sans-serif;
+  --font-general-sans: 'General Sans', 'Inter', system-ui, sans-serif;
+  --font-inter: 'Inter', var(--font-sans), system-ui, sans-serif;
   --font-syne: var(--font-sans), sans-serif;
-  --font-inter: var(--font-sans), sans-serif;
-  --font-mono: var(--font-mono), monospace;
+  --font-mono: var(--font-mono), 'JetBrains Mono', monospace;
 
-  --radius-default: 2px;
+  /* Typography Scale */
+  --text-display: 2.5rem;
+  --text-display--line-height: 1.1;
+  --text-display--letter-spacing: -0.03em;
+  --text-display--font-weight: 700;
+
+  --text-h1: 2rem;
+  --text-h1--line-height: 1.2;
+  --text-h1--letter-spacing: -0.025em;
+  --text-h1--font-weight: 600;
+
+  --text-h2: 1.5rem;
+  --text-h2--line-height: 1.25;
+  --text-h2--letter-spacing: -0.02em;
+  --text-h2--font-weight: 600;
+
+  --text-h3: 1.25rem;
+  --text-h3--line-height: 1.3;
+  --text-h3--letter-spacing: -0.015em;
+  --text-h3--font-weight: 600;
+
+  --text-h4: 1.125rem;
+  --text-h4--line-height: 1.35;
+  --text-h4--letter-spacing: -0.01em;
+  --text-h4--font-weight: 600;
+
+  --text-body-lg: 1rem;
+  --text-body-lg--line-height: 1.5;
+  --text-body-lg--letter-spacing: -0.01em;
+  --text-body-lg--font-weight: 400;
+
+  --text-body: 0.875rem;
+  --text-body--line-height: 1.5;
+  --text-body--letter-spacing: 0;
+  --text-body--font-weight: 400;
+
+  --text-body-sm: 0.75rem;
+  --text-body-sm--line-height: 1.5;
+  --text-body-sm--letter-spacing: 0;
+  --text-body-sm--font-weight: 400;
+
+  --text-caption: 0.6875rem;
+  --text-caption--line-height: 1.4;
+  --text-caption--letter-spacing: 0.02em;
+  --text-caption--font-weight: 500;
+
+  --text-mono-vrm: 0.875rem;
+  --text-mono-vrm--line-height: 1.25;
+  --text-mono-vrm--letter-spacing: 0.08em;
+  --text-mono-vrm--font-weight: 700;
+
+  --radius-default: 6px;
 }
 
+/* --------------------------------------------------------------------------
+   Base Styles
+   -------------------------------------------------------------------------- */
 @layer base {
   body {
-    background-color: var(--color-void);
-    color: var(--color-cream);
+    background-color: var(--color-bg-canvas);
+    color: var(--color-text-primary);
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     font-family: var(--font-sans);
@@ -74,112 +298,124 @@
   h1, h2, h3, h4, h5, h6 {
     font-family: var(--font-sans);
     font-weight: 600;
-    color: var(--color-cream);
+    color: var(--color-text-primary);
     letter-spacing: -0.02em;
   }
 
-  /* Page titles and major identity headings */
-  .font-syne-title {
-    font-family: var(--font-sans);
-    font-weight: 600;
-    letter-spacing: -0.02em;
-  }
-
-  /* Monospace typography strictly for IDs, reg numbers, codes */
   .font-mono {
     font-family: var(--font-mono);
     letter-spacing: -0.01em;
   }
 
-  /* Quantitative and Financial Numerals */
   .tabular-nums {
     font-variant-numeric: tabular-nums;
   }
 
-  /* Custom scrollbar */
+  /* Custom Scrollbar */
   ::-webkit-scrollbar {
     width: 6px;
     height: 6px;
   }
 
   ::-webkit-scrollbar-track {
-    background-color: var(--color-void);
+    background-color: var(--color-bg-canvas);
   }
 
   ::-webkit-scrollbar-thumb {
-    background-color: var(--color-steel);
+    background-color: var(--color-border);
     border-radius: 9999px;
   }
 
   ::-webkit-scrollbar-thumb:hover {
-    background-color: var(--color-slate);
+    background-color: rgba(255, 255, 255, 0.2);
   }
 }
 
-@utility glass {
-  background-color: var(--color-carbon);
-  border: 1px solid var(--color-steel);
-}
-
-@utility nav-item-active {
-  background-color: rgba(14, 165, 233, 0.08);
-  color: #EDE8DC;
-  border-left: 2px solid var(--color-blue);
-}
-
-@utility nav-item-hover {
-  &:hover {
-    background-color: rgba(255, 255, 255, 0.05);
-    color: #EDE8DC;
+/* --------------------------------------------------------------------------
+   3D "Breathing" Motion System & Glassmorphism
+   -------------------------------------------------------------------------- */
+@keyframes breathingMotion {
+  0%, 100% {
+    transform: scale(1) translateY(0);
   }
-  transition: all 0.15s ease;
-}
-
-/* Staggered Calm Dashboard Section Entrance System */
-@keyframes sectionReveal {
-  from {
-    opacity: 0;
-    transform: translateY(10px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
+  50% {
+    transform: scale(1.015) translateY(-4px);
   }
 }
 
-.reveal-1 {
-  animation: sectionReveal 500ms cubic-bezier(0.16, 1, 0.3, 1) both;
+@keyframes ambientDrift {
+  0% {
+    transform: translate(-10%, -10%) scale(1);
+    opacity: 0.16;
+  }
+  50% {
+    transform: translate(15%, 15%) scale(1.15);
+    opacity: 0.26;
+  }
+  100% {
+    transform: translate(-15%, 10%) scale(0.95);
+    opacity: 0.18;
+  }
 }
 
-.reveal-2 {
-  animation: sectionReveal 500ms cubic-bezier(0.16, 1, 0.3, 1) 70ms both;
+/* Breathing utility class for any card/tile */
+.breathing {
+  animation: breathingMotion 9s ease-in-out infinite;
+  will-change: transform;
 }
 
-.reveal-3 {
-  animation: sectionReveal 500ms cubic-bezier(0.16, 1, 0.3, 1) 140ms both;
+/* Ambient drift utility for background light cones */
+.ambient-drift {
+  animation: ambientDrift 20s ease-in-out infinite alternate;
+  will-change: transform, opacity;
 }
 
-.reveal-4 {
-  animation: sectionReveal 500ms cubic-bezier(0.16, 1, 0.3, 1) 210ms both;
+/* Soft elevated glass card with subtle electric-blue edge glow bleed */
+.glass-elevated {
+  background: var(--color-bg-surface);
+  border: 1px solid var(--color-border);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  box-shadow: 
+    0 10px 30px -10px rgba(0, 71, 255, 0.18),
+    0 4px 12px rgba(0, 0, 0, 0.35);
+  transition: all 0.3s ease;
 }
 
-.reveal-5 {
-  animation: sectionReveal 500ms cubic-bezier(0.16, 1, 0.3, 1) 280ms both;
+.glass-elevated:hover {
+  border-color: rgba(0, 71, 255, 0.35);
+  box-shadow: 
+    0 14px 40px -8px rgba(0, 71, 255, 0.28),
+    0 6px 16px rgba(0, 0, 0, 0.45);
 }
 
-.reveal-6 {
-  animation: sectionReveal 500ms cubic-bezier(0.16, 1, 0.3, 1) 350ms both;
+/* Light mode shadow tuning */
+.light .glass-elevated {
+  box-shadow: 
+    0 10px 25px -8px rgba(0, 71, 255, 0.12),
+    0 2px 8px rgba(0, 0, 0, 0.04);
 }
 
-.reveal-7 {
-  animation: sectionReveal 550ms cubic-bezier(0.16, 1, 0.3, 1) 420ms both;
+.light .glass-elevated:hover {
+  box-shadow: 
+    0 14px 35px -6px rgba(0, 71, 255, 0.18),
+    0 4px 12px rgba(0, 0, 0, 0.08);
 }
 
-.animate-fade-in {
-  animation: sectionReveal 400ms cubic-bezier(0.16, 1, 0.3, 1) both;
-}
-
+/* --------------------------------------------------------------------------
+   Reduced-Motion Accessibility Guards
+   -------------------------------------------------------------------------- */
 @media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+
+  .breathing,
+  .ambient-drift,
   .reveal-1,
   .reveal-2,
   .reveal-3,
@@ -194,11 +430,32 @@
   }
 }
 
-/* Row & interactive hover transitions (no physical container lift) */
+/* --------------------------------------------------------------------------
+   Existing Calm Dashboard Reveal Stagger Keyframes
+   -------------------------------------------------------------------------- */
+@keyframes sectionReveal {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.reveal-1 { animation: sectionReveal 500ms cubic-bezier(0.16, 1, 0.3, 1) both; }
+.reveal-2 { animation: sectionReveal 500ms cubic-bezier(0.16, 1, 0.3, 1) 70ms both; }
+.reveal-3 { animation: sectionReveal 500ms cubic-bezier(0.16, 1, 0.3, 1) 140ms both; }
+.reveal-4 { animation: sectionReveal 500ms cubic-bezier(0.16, 1, 0.3, 1) 210ms both; }
+.reveal-5 { animation: sectionReveal 500ms cubic-bezier(0.16, 1, 0.3, 1) 280ms both; }
+.reveal-6 { animation: sectionReveal 500ms cubic-bezier(0.16, 1, 0.3, 1) 350ms both; }
+.reveal-7 { animation: sectionReveal 550ms cubic-bezier(0.16, 1, 0.3, 1) 420ms both; }
+.animate-fade-in { animation: sectionReveal 400ms cubic-bezier(0.16, 1, 0.3, 1) both; }
+
 .row-hover {
   transition: background-color 0.15s ease, border-color 0.15s ease;
 }
-
 .row-hover:hover {
-  background-color: var(--color-asphalt);
+  background-color: var(--color-bg-surface-raised);
 }
