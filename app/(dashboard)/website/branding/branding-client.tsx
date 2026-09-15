@@ -19,8 +19,8 @@ export default function BrandingClient({
   initialWebsite: DealerWebsiteRecord
 }) {
   const [website, setWebsite] = useState(initialWebsite)
-  const [primaryColour, setPrimaryColour] = useState(website.primary_colour || '#0EA5E9')
-  const [accentColour, setAccentColour] = useState(website.accent_colour || '#F97316')
+  const [primaryColour, setPrimaryColour] = useState(website.primary_colour || '#0047FF')
+  const [accentColour, setAccentColour] = useState(website.accent_colour || '#0047FF')
   const [themePreset, setThemePreset] = useState(website.theme_preset || 'contemporary')
   const [fontHeading, setFontHeading] = useState(website.font_heading || 'Inter')
   const [fontBody, setFontBody] = useState(website.font_body || 'Inter')

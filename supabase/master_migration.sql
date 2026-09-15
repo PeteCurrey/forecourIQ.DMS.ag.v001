@@ -2088,7 +2088,7 @@ CREATE TABLE IF NOT EXISTS public.dealer_websites (
                                     'performance','prestige','contemporary','minimal','classic'
                                   )),
   primary_colour                  TEXT DEFAULT '#0EA5E9',
-  accent_colour                   TEXT DEFAULT '#F97316',
+  accent_colour                   TEXT DEFAULT '#0047FF',
   background_preference           TEXT DEFAULT 'light'
                                   CHECK (background_preference IN ('light','dark','system')),
   font_heading                    TEXT DEFAULT 'Inter',

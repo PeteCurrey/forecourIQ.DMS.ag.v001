@@ -6,15 +6,7 @@ import Link from 'next/link';
 import { Wrench, Plus, MessageSquare } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { DashboardService } from '@/lib/services/dashboard/dashboard-service';
-import DashboardGauges from '@/components/dashboard/dashboard-gauges';
-import AttentionVehicles from '@/components/dashboard/attention-vehicles';
-import TodayTimeline from '@/components/dashboard/today-timeline';
-import StockAgeingDistribution from '@/components/dashboard/stock-ageing-distribution';
-import SalesPipelineStrip from '@/components/dashboard/sales-pipeline-strip';
-import PerformanceChart30d from '@/components/dashboard/performance-chart-30d';
-import IntelligenceDecisionFeed from '@/components/dashboard/intelligence-decision-feed';
-import StockMovementsWidget from '@/components/dashboard/stock-movements-widget';
-import TeamActivityWidget from '@/components/dashboard/team-activity-widget';
+import DashboardCockpit from '@/components/dashboard/dashboard-cockpit';
 
 export const metadata = {
   title: 'Daily Control Centre | ForecourIQ DMS',
@@ -166,82 +158,9 @@ export default async function DashboardPage() {
       {/* Thin separator */}
       <div className="border-t border-steel/40" />
 
-      {/* ── REGION 3: DEALERSHIP INSTRUMENTS ── */}
+      {/* ── REGION 3: 3-ZONE COCKPIT, BOTTOM FILMSTRIP & OPERATIONAL SUITE ── */}
       <div className="reveal-3" style={{ animationDelay: '140ms' }}>
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="font-sans text-sm font-semibold text-cream">Dealership Instruments</h2>
-          <p className="text-[11px] text-pewter">Denominators verified · Real stock & CRM data</p>
-        </div>
-        <DashboardGauges gauges={gauges} />
-      </div>
-
-      {/* ── REGION 4: TODAY'S AGENDA ── */}
-      <div className="reveal-4" style={{ animationDelay: '210ms' }}>
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="font-sans text-sm font-semibold text-cream">Today's Agenda</h2>
-          <Link href="/appointments" className="text-xs text-pewter hover:text-cream underline">
-            All Appointments →
-          </Link>
-        </div>
-        <TodayTimeline items={todayFocus} />
-      </div>
-
-      {/* ── REGION 5: VEHICLES REQUIRING ATTENTION ── */}
-      <div className="reveal-5" style={{ animationDelay: '280ms' }}>
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="font-sans text-sm font-semibold text-cream">Vehicles Requiring Attention</h2>
-          <Link href="/stock" className="text-xs text-pewter hover:text-cream underline">
-            All Stockbook ({kpis.totalRetailUnits}) →
-          </Link>
-        </div>
-        <AttentionVehicles vehicles={attentionVehicles} canViewMargin={canViewMargin} />
-      </div>
-
-      {/* ── REGION 6: STOCK AGEING DISTRIBUTION ── */}
-      <div className="reveal-5" style={{ animationDelay: '310ms' }}>
-        <StockAgeingDistribution
-          brackets={data.stockAgeDistribution}
-          ageingCapitalExposed={data.ageingCapitalExposed}
-          canViewMargin={canViewMargin}
-        />
-      </div>
-
-      {/* ── REGION 7: DEAL DESK & 30-DAY PERFORMANCE ── */}
-      <div
-        className="reveal-6 grid grid-cols-1 lg:grid-cols-2 gap-6"
-        style={{ animationDelay: '350ms' }}
-      >
-        <SalesPipelineStrip pipeline={data.salesPipeline} canViewMargin={canViewMargin} />
-        <PerformanceChart30d
-          points={data.performance30d.points}
-          totalSold={data.performance30d.totalSold}
-          totalGross={data.performance30d.totalGross}
-          canViewMargin={canViewMargin}
-        />
-      </div>
-
-      {/* ── REGION 8: INTELLIGENCE DECISION FEED ── */}
-      {data.intelligenceFeed.length > 0 && (
-        <div className="reveal-7" style={{ animationDelay: '420ms' }}>
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="font-sans text-sm font-semibold text-cream">Intelligence</h2>
-            <Link href="/command-centre" className="text-xs text-pewter hover:text-cream underline">
-              Full Command Centre →
-            </Link>
-          </div>
-          <IntelligenceDecisionFeed items={data.intelligenceFeed} />
-        </div>
-      )}
-
-      {/* ── REGION 9: TEAM ACTIVITY + STOCK MOVEMENTS ── */}
-      <div
-        className="reveal-7 grid grid-cols-1 lg:grid-cols-2 gap-6"
-        style={{ animationDelay: '490ms' }}
-      >
-        <TeamActivityWidget events={teamActivity} />
-        {data.multiSite && stockMovements && (
-          <StockMovementsWidget movements={stockMovements} />
-        )}
+        <DashboardCockpit data={data} />
       </div>
 
     </div>
